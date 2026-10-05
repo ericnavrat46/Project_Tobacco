@@ -1,0 +1,12 @@
+# Folder ini disiapkan untuk menampung dataset gambar daun tembakau hasil download dari Roboflow.
+# Contoh struktur folder dataset:
+# ai/dataset/
+#   ├── train/
+#   │   ├── wrapper/
+#   │   ├── binder/
+#   │   └── filler/
+#   ├── valid/
+#   │   ├── wrapper/
+#   │   ├── binder/
+#   │   └── filler/
+#   └── test/

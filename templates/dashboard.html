@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Monitoring Gudang Tembakau - Real-time IoT{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-lg-4 py-3">
+    <!-- Top Header & Last Update Banner -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-4">
+        <div>
+            <div class="d-flex align-items-center gap-2">
+                <h1 class="h3 fw-bold mb-0">Dashboard Monitoring Gudang Tembakau</h1>
+            </div>
+            <p class="text-secondary small mb-0 mt-1">
+                Telemetri lingkungan ESP32 (Suhu, Kelembapan, Gas, Fan, Alarm) &amp; Klasifikasi Mutu Daun Wemos Conveyor
+            </p>
+        </div>
+        <div class="d-flex align-items-center gap-2 text-secondary small bg-surface-soft p-2 rounded-3 border">
+            <i class="bi bi-clock-history"></i>
+            <span>Pembaruan Terakhir: <strong id="lblLastUpdate" class="text-primary">-</strong></span>
+        </div>
+    </div>
+
+    <!-- Section 1: Ringkasan Status Lingkungan Gudang (Cards) -->
+    <div class="row g-3 mb-4">
+        <!-- Suhu Card -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="metric-card h-100" id="cardSuhu">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="metric-sublabel text-uppercase fw-bold mb-1">Suhu Ruang Gudang</div>
+                        <div class="d-flex align-items-baseline gap-1">
+                            <span class="metric-value" id="valSuhu">--.-</span>
+                            <span class="metric-unit">°C</span>
+                        </div>
+                    </div>
+                    <div class="metric-icon-box bg-danger-subtle text-danger" id="iconBoxSuhu">
+                        <i class="bi bi-thermometer-half"></i>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-opacity-10">
+                    <span class="badge rounded-pill px-2 py-1" id="badgeStatusSuhu">Membaca...</span>
+                    <span class="metric-sublabel">Ideal: 20° - 28°C</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kelembapan Card -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="metric-card h-100" id="cardKelembapan">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="metric-sublabel text-uppercase fw-bold mb-1">Kelembapan Udara (RH)</div>
+                        <div class="d-flex align-items-baseline gap-1">
+                            <span class="metric-value" id="valKelembapan">--.-</span>
+                            <span class="metric-unit">%</span>
+                        </div>
+                    </div>
+                    <div class="metric-icon-box bg-primary-subtle text-primary" id="iconBoxKelembapan">
+                        <i class="bi bi-droplet-half"></i>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-opacity-10">
+                    <span class="badge rounded-pill px-2 py-1" id="badgeStatusKelembapan">Membaca...</span>
+                    <span class="metric-sublabel">Ideal: 60% - 70%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gas Card -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="metric-card h-100" id="cardGas">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="metric-sublabel text-uppercase fw-bold mb-1">Konsentrasi Gas</div>
+                        <div class="d-flex align-items-baseline gap-1">
+                            <span class="metric-value" id="valGas">---</span>
+                            <span class="metric-unit">ppm</span>
+                        </div>
+                    </div>
+                    <div class="metric-icon-box bg-warning-subtle text-warning" id="iconBoxGas">
+                        <i class="bi bi-wind"></i>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-opacity-10">
+                    <span class="badge rounded-pill px-2 py-1" id="badgeStatusGas">Membaca...</span>
+                    <span class="metric-sublabel">Batas Aman: &lt; 150</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Fan & Alarm Combined Card -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="metric-card h-100" id="cardDevices">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="metric-sublabel text-uppercase fw-bold mb-1">Aktuator &amp; Keamanan</div>
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <span class="fw-bold fs-6">Kipas:</span>
+                            <span class="badge bg-secondary rounded-pill px-2 py-1" id="badgeModeFan" style="font-size: 0.65rem;">AUTO</span>
+                            <span class="badge rounded-pill px-2 py-1" id="badgeStatusFan">OFF</span>
+                        </div>
+                    </div>
+                    <div class="metric-icon-box bg-secondary-subtle text-secondary" id="iconBoxFan">
+                        <i class="bi bi-fan fs-3" id="iconFanRotate"></i>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-opacity-10">
+                    <span class="metric-sublabel fw-bold">Alarm Sistem:</span>
+                    <span class="badge rounded-pill px-2 py-1" id="badgeStatusAlarm">AMAN</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Section 2: Filter Rentang Tanggal Histori -->
+    <div class="dashboard-card mb-4 p-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-12 col-md-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-funnel-fill text-emerald fs-5"></i>
+                    <div>
+                        <h6 class="mb-0 fw-bold">Filter Histori Data</h6>
+                        <small class="text-secondary">Pilih rentang tanggal grafik &amp; tabel</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-4 col-md-3">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
+                    <input type="date" class="form-control" id="inputStartDate" title="Tanggal Mulai">
+                </div>
+            </div>
+            <div class="col-12 col-sm-4 col-md-3">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-calendar-check"></i></span>
+                    <input type="date" class="form-control" id="inputEndDate" title="Tanggal Selesai">
+                </div>
+            </div>
+            <div class="col-12 col-sm-4 col-md-3 d-flex gap-2">
+                <button class="btn btn-emerald btn-sm flex-fill" id="btnApplyFilter" type="button">
+                    <i class="bi bi-search me-1"></i> Terapkan
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" id="btnResetFilter" type="button" title="Reset ke 24 Jam Terakhir">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Grafik Lingkungan & Distribusi Klasifikasi Daun -->
+    <div class="row g-4 mb-4">
+        <!-- Line Chart Tren Suhu & Kelembapan -->
+        <div class="col-12 col-xl-8">
+            <div class="dashboard-card h-100">
+                <div class="card-header-custom">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-graph-up text-emerald fs-5"></i>
+                        <div>
+                            <h6 class="mb-0 fw-bold">Tren Suhu &amp; Kelembapan</h6>
+                            <small class="text-secondary" id="lblChartRange">Histori sensor gudang tembakau</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle d-none d-sm-inline">
+                            <i class="bi bi-circle-fill me-1" style="font-size: 8px;"></i> Suhu (°C)
+                        </span>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle d-none d-sm-inline">
+                            <i class="bi bi-circle-fill me-1" style="font-size: 8px;"></i> Kelembapan (%)
+                        </span>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <div class="chart-container-wrapper">
+                        <canvas id="envLineChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Doughnut / Pie Chart Klasifikasi Daun & Statistik Ringkasan -->
+        <div class="col-12 col-xl-4">
+            <div class="dashboard-card h-100 d-flex flex-column">
+                <div class="card-header-custom">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-pie-chart-fill text-warning fs-5"></i>
+                        <div>
+                            <h6 class="mb-0 fw-bold">Klasifikasi Daun Tembakau</h6>
+                            <small class="text-secondary">Wemos Conveyor Classifier</small>
+                        </div>
+                    </div>
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle" id="badgeTotalDaun">
+                        Total: 0
+                    </span>
+                </div>
+                <div class="p-3 flex-fill d-flex flex-column justify-content-between">
+                    <div class="chart-container-wrapper mb-3" style="height: 220px;">
+                        <canvas id="leafPieChart"></canvas>
+                    </div>
+
+                    <!-- Breakdown Ringkasan Daun -->
+                    <div class="d-flex flex-column gap-2 pt-2 border-top">
+                        <!-- Wrapper -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge rounded-pill badge-wrapper px-2 py-1">Wrapper</span>
+                                <small class="text-secondary">Daun Pembungkus Luar</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="fw-bold" id="statWrapperCount">0</span>
+                                <small class="text-secondary" id="statWrapperPct">(0%)</small>
+                            </div>
+                        </div>
+
+                        <!-- Binder -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge rounded-pill badge-binder px-2 py-1">Binder</span>
+                                <small class="text-secondary">Daun Pengikat Tengah</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="fw-bold" id="statBinderCount">0</span>
+                                <small class="text-secondary" id="statBinderPct">(0%)</small>
+                            </div>
+                        </div>
+
+                        <!-- Filler -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge rounded-pill badge-filler px-2 py-1">Filler</span>
+                                <small class="text-secondary">Daun Pengisi Inti</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="fw-bold" id="statFillerCount">0</span>
+                                <small class="text-secondary" id="statFillerPct">(0%)</small>
+                            </div>
+                        </div>
+
+                        <!-- Latest Detected Leaf Pill -->
+                        <div class="alert alert-light border d-flex justify-content-between align-items-center p-2 mt-2 mb-0 rounded-3">
+                            <small class="text-secondary"><i class="bi bi-clock me-1"></i> Terakhir Diuji:</small>
+                            <div id="statLatestLeaf" class="fw-semibold text-primary">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 4: Uji Coba Klasifikasi Daun (Upload) -->
+    <div class="dashboard-card mb-4 p-3 border-emerald border-2">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-camera text-emerald fs-5"></i>
+            <div>
+                <h6 class="mb-0 fw-bold">Uji Coba Identifikasi Mutu Daun</h6>
+                <small class="text-secondary">Upload foto daun untuk menguji model AI (Simulasi: High/Medium/Low)</small>
+            </div>
+        </div>
+        <div class="row align-items-center">
+            <div class="col-md-6 mb-3 mb-md-0">
+                <form id="uploadLeafForm" class="d-flex gap-2">
+                    <input type="file" class="form-control form-control-sm" id="leafImageInput" accept="image/jpeg, image/png, image/webp" required>
+                    <button type="submit" class="btn btn-emerald btn-sm px-4">
+                        <i class="bi bi-cloud-upload me-1"></i> Uji
+                    </button>
+                </form>
+            </div>
+            <div class="col-md-6">
+                <div id="predictResult" class="alert alert-light border mb-0 d-none d-flex align-items-center justify-content-between p-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="predictBadge" class="badge rounded-pill">-</span>
+                        <span id="predictQuality" class="fw-bold text-dark">-</span>
+                    </div>
+                    <small id="predictConf" class="text-secondary">-</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const uploadForm = document.getElementById('uploadLeafForm');
+        const predictResult = document.getElementById('predictResult');
+        
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const fileInput = document.getElementById('leafImageInput');
+                if (!fileInput.files.length) return;
+                
+                const formData = new FormData();
+                formData.append('gambar', fileInput.files[0]);
+                
+                const btn = uploadForm.querySelector('button[type="submit"]');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
+                btn.disabled = true;
+                
+                try {
+                    const res = await fetch('/api/conveyor/predict', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await res.json();
+                    
+                    if (result.success) {
+                        predictResult.classList.remove('d-none');
+                        document.getElementById('predictQuality').innerText = result.data.kualitas;
+                        document.getElementById('predictConf').innerText = "Akurasi: " + (result.data.confidence_score * 100).toFixed(1) + "%";
+                        
+                        const badge = document.getElementById('predictBadge');
+                        badge.innerText = result.data.hasil_klasifikasi.toUpperCase();
+                        
+                        // Set colors
+                        badge.className = "badge rounded-pill";
+                        if(result.data.hasil_klasifikasi === 'wrapper') badge.classList.add("bg-success");
+                        else if(result.data.hasil_klasifikasi === 'binder') badge.classList.add("bg-warning", "text-dark");
+                        else badge.classList.add("bg-danger");
+                        
+                        // If there's an active JS polling function, we should ideally refresh it, but it will auto refresh.
+                    } else {
+                        alert("Gagal: " + result.message);
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert("Terjadi kesalahan jaringan.");
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    uploadForm.reset();
+                }
+            });
+        }
+    });
+    </script>
+
+    <!-- Section 5: Tabel Log Terbaru (10 Data Terakhir) -->
+    <div class="dashboard-card mb-4">
+        <div class="card-header-custom flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-table text-emerald fs-5"></i>
+                <h6 class="mb-0 fw-bold">Log Data Terbaru (10 Entri Terakhir)</h6>
+            </div>
+            <!-- Tab switcher between Gudang & Conveyor -->
+            <ul class="nav nav-pills nav-pills-custom gap-1" id="logTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="tab-gudang-btn" data-bs-toggle="pill" data-bs-target="#tab-gudang" type="button" role="tab">
+                        <i class="bi bi-building me-1"></i> Sensor Gudang
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-conveyor-btn" data-bs-toggle="pill" data-bs-target="#tab-conveyor" type="button" role="tab">
+                        <i class="bi bi-boxes me-1"></i> Klasifikasi Conveyor
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="tab-content" id="logTabsContent">
+            <!-- Tab Gudang -->
+            <div class="tab-pane fade show active" id="tab-gudang" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-custom table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Waktu Perekaman</th>
+                                <th>Suhu</th>
+                                <th>Kelembapan</th>
+                                <th>Kadar Gas</th>
+                                <th>Status Fan</th>
+                                <th>Alarm</th>
+                                <th>Status Evaluasi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableGudangBody">
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-secondary">
+                                    <div class="spinner-border spinner-border-sm text-emerald me-2" role="status"></div>
+                                    Memuat data telemetri gudang...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab Conveyor -->
+            <div class="tab-pane fade" id="tab-conveyor" role="tabpanel">
+                <div class="table-responsive">
+                    <table class="table table-custom table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Waktu Perekaman</th>
+                                <th>Hasil Klasifikasi</th>
+                                <th>Confidence Score</th>
+                                <th>Akurasi (%)</th>
+                                <th>Kategori Daun</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableConveyorBody">
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-secondary">
+                                    <div class="spinner-border spinner-border-sm text-emerald me-2" role="status"></div>
+                                    Memuat data klasifikasi daun...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

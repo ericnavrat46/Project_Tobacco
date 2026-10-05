@@ -1,0 +1,399 @@
+/* =========================================================
+   Tobacco Monitoring IoT Dashboard - Custom Styling
+   ========================================================= */
+
+:root {
+    --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    
+    /* Emerald Green Primary Theme */
+    --primary-emerald: #10b981;
+    --primary-emerald-dark: #059669;
+    --primary-emerald-light: #ecfdf5;
+    
+    /* Status Colors */
+    --status-normal: #10b981;
+    --status-warning: #f59e0b;
+    --status-danger: #ef4444;
+    
+    /* Tobacco Classification Colors */
+    --tobacco-wrapper: #f59e0b; /* Golden Amber */
+    --tobacco-binder: #b45309;  /* Rich Leather/Cigar */
+    --tobacco-filler: #78350f;  /* Deep Earthy Leaf */
+
+    /* Light Theme Tokens */
+    --bg-page: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-surface-soft: #f1f5f9;
+    --border-color: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    --card-shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+}
+
+[data-bs-theme="dark"] {
+    --bg-page: #0b1120;
+    --bg-surface: #1e293b;
+    --bg-surface-soft: #0f172a;
+    --border-color: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --primary-emerald-light: rgba(16, 185, 129, 0.15);
+    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --card-shadow-hover: 0 10px 20px -3px rgba(0, 0, 0, 0.6);
+}
+
+body {
+    font-family: var(--font-main);
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Navbar 3D Glassmorphism */
+.main-navbar {
+    background-color: var(--bg-surface);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.1), 
+                0 5px 15px -5px rgba(0, 0, 0, 0.05),
+                inset 0 1px 1px rgba(255, 255, 255, 0.6);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important;
+    transform: translateZ(0);
+    transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+[data-bs-theme="dark"] .main-navbar {
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6), 
+                0 8px 16px -8px rgba(0, 0, 0, 0.5),
+                inset 0 1px 1px rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.brand-icon-box {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--primary-emerald-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.brand-title {
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #059669, #10b981);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.text-emerald {
+    color: var(--primary-emerald) !important;
+}
+
+.btn-emerald {
+    background-color: var(--primary-emerald);
+    color: #ffffff;
+    border: none;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-emerald:hover {
+    background-color: var(--primary-emerald-dark);
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.btn-emerald:active {
+    transform: translateY(0);
+}
+
+.icon-btn {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-color: var(--border-color);
+}
+
+/* Emergency Alert Banner */
+.emergency-banner {
+    background: linear-gradient(90deg, #dc2626, #b91c1c);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+    animation: alertPulse 1.8s infinite;
+}
+
+@keyframes alertPulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.92; }
+    100% { opacity: 1; }
+}
+
+.alert-flashing-icon {
+    animation: flashIcon 0.8s infinite alternate;
+}
+
+@keyframes flashIcon {
+    from { transform: scale(1); }
+    to { transform: scale(1.15); color: #fef08a; }
+}
+
+/* Live Pulse Dot */
+.live-indicator {
+    background-color: var(--bg-surface-soft);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    font-size: 0.78rem;
+}
+
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--status-normal);
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 0 rgba(16, 185, 129, 0.4);
+    animation: pulseGlow 1.8s infinite;
+}
+
+@keyframes pulseGlow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+
+/* Metric / Stat Cards */
+.metric-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 1.25rem;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--card-shadow-hover);
+}
+
+.metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: transparent;
+    transition: background 0.3s ease;
+}
+
+.metric-card.status-border-normal::before {
+    background: var(--status-normal);
+}
+
+.metric-card.status-border-warning::before {
+    background: var(--status-warning);
+}
+
+.metric-card.status-border-danger::before {
+    background: var(--status-danger);
+}
+
+.metric-icon-box {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.metric-value {
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+}
+
+.metric-unit {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.metric-sublabel {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+/* Fan Rotation Animation */
+.fan-spinning {
+    animation: spinFan 1.2s linear infinite;
+    transform-origin: center;
+}
+
+@keyframes spinFan {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Custom Status Badges */
+.badge-status-normal {
+    background-color: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    font-weight: 600;
+}
+
+.badge-status-warning {
+    background-color: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    font-weight: 600;
+}
+
+.badge-status-danger {
+    background-color: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    font-weight: 600;
+}
+
+/* Alarm Indicator Pill */
+.alarm-active-indicator {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    animation: alarmBlink 1s infinite alternate;
+}
+
+@keyframes alarmBlink {
+    from { opacity: 1; }
+    to { opacity: 0.55; }
+}
+
+/* Content Cards & Sections */
+.dashboard-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    box-shadow: var(--card-shadow);
+    transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+
+.card-header-custom {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* Custom Table Styling */
+.table-custom {
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+.table-custom th {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    background-color: var(--bg-surface-soft);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
+}
+
+.table-custom td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.88rem;
+}
+
+/* Chart Canvas container */
+.chart-container-wrapper {
+    position: relative;
+    width: 100%;
+    height: 300px;
+}
+
+/* Leaf Classification Badges */
+.badge-wrapper {
+    background-color: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-binder {
+    background-color: rgba(180, 83, 9, 0.15);
+    color: #b45309;
+    border: 1px solid rgba(180, 83, 9, 0.3);
+}
+
+.badge-filler {
+    background-color: rgba(120, 53, 15, 0.15);
+    color: #9a3412;
+    border: 1px solid rgba(120, 53, 15, 0.3);
+}
+
+[data-bs-theme="dark"] .badge-wrapper {
+    color: #fbbf24;
+}
+
+[data-bs-theme="dark"] .badge-binder {
+    color: #f59e0b;
+}
+
+[data-bs-theme="dark"] .badge-filler {
+    color: #fb923c;
+}
+
+/* Navigation Tabs */
+.nav-pills-custom .nav-link {
+    color: var(--text-secondary);
+    border-radius: 8px;
+    padding: 0.45rem 1rem;
+    font-weight: 600;
+    font-size: 0.88rem;
+    border: 1px solid transparent;
+}
+
+.nav-pills-custom .nav-link.active {
+    background-color: var(--primary-emerald);
+    color: #ffffff;
+}
+
+/* Footer */
+.footer {
+    background-color: var(--bg-surface);
+    border-color: var(--border-color) !important;
+}
+
+/* Small screen tweaks */
+@media (max-width: 768px) {
+    .metric-value {
+        font-size: 1.55rem;
+    }
+    .metric-card {
+        padding: 1rem;
+    }
+    .chart-container-wrapper {
+        min-height: 240px;
+    }
+}
