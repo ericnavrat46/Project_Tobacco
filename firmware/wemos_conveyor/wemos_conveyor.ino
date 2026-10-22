@@ -43,7 +43,7 @@ const char* WIFI_SSID     = "NAMA_WIFI_ANDA";         // Ganti dengan SSID WiFi 
 const char* WIFI_PASSWORD = "PASSWORD_WIFI_ANDA";     // Ganti dengan Password WiFi Anda
 
 // Masukkan URL API Conveyor Server Flask Anda
-const char* SERVER_URL    = "http://192.168.1.8:5000/api/conveyor";
+const char* SERVER_URL    = "http://192.168.1.10:5000/api/conveyor";
 
 // Debounce timing (mencegah trigger ganda pada satu lembar daun yang sama)
 const unsigned long DEBOUNCE_DELAY_MS = 1200; // Minimal selang 1.2 detik per daun

@@ -1,260 +1,294 @@
-/*
-  ===================================================================================
-  TobaccoGuard IoT - Firmware Monitoring Gudang Tembakau (ESP32)
-  ===================================================================================
-  Deskripsi:
-  Membaca sensor lingkungan gudang tembakau, mengontrol kipas dan buzzer alarm,
-  lalu mengirimkan telemetri secara berkala via HTTP POST JSON ke server Flask.
-
-  Komponen Hardware:
-  - Mikrokontroler : ESP32 DevKit V1 (30 / 38 pin)
-  - Sensor Suhu & RH: DHT22 (Pin GPIO 4)
-  - Sensor Gas    : MQ-135 / MQ-2 Air Quality (Pin Analog GPIO 34 / ADC1)
-  - Modul Relay   : Relay 1-Channel untuk Kipas Sirkulasi (Pin GPIO 18)
-  - Modul Buzzer  : Active Buzzer untuk Alarm Kritis (Pin GPIO 19)
-  - Indikator LED : Built-in LED ESP32 (Pin GPIO 2)
-
-  Library yang Dibutuhkan (Install via Arduino Library Manager):
-  1. "DHT sensor library" by Adafruit
-  2. "Adafruit Unified Sensor" by Adafruit
-  3. "ArduinoJson" by Benoit Blanchon (versi 6 atau 7)
-  ===================================================================================
-*/
-
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 #include <DHT.h>
-#include <ArduinoJson.h>
 
-// =================== 1. KONFIGURASI JARINGAN & SERVER ===================
-const char* WIFI_SSID     = "NAMA_WIFI_ANDA";         // Ganti dengan SSID WiFi Anda
-const char* WIFI_PASSWORD = "PASSWORD_WIFI_ANDA";     // Ganti dengan Password WiFi Anda
+// ==========================================================
+// 1. KONFIGURASI WIFI & SERVER FLASK
+// ==========================================================
+const char* WIFI_SSID     = "NAVRATA";     // Ganti dengan SSID WiFi / Hotspot Anda
+const char* WIFI_PASSWORD = "RIC040906"; // Ganti dengan Password WiFi Anda
 
-// Masukkan IP Komputer / Server Laragon Anda (Cek via 'ipconfig' di cmd Windows)
-// Contoh: "http://192.168.1.8:5000/api/gudang"
-const char* SERVER_URL    = "http://192.168.1.8:5000/api/gudang";
-const char* SETTINGS_URL  = "http://192.168.1.8:5000/api/settings";
+// Alamat IP komputer server Anda (Port default 5000)
+const char* SERVER_URL    = "http://192.168.1.10:5000/api/gudang";
 
-// Interval pengiriman data ke server (milidetik)
-const unsigned long SEND_INTERVAL_MS = 5000; // Kirim tiap 5 detik
 
-// =================== 2. DEFINISI PIN HARDWARE ===================
-#define DHTPIN        4       // Pin Data DHT22 (GPIO 4)
-#define DHTTYPE       DHT22   // Jenis DHT: DHT22 (AM2302)
-#define GAS_PIN       34      // Pin Analog MQ-135 (GPIO 34 ADC1_CH6)
-#define RELAY_FAN_PIN 18      // Pin Kontrol Relay Kipas (GPIO 18)
-#define BUZZER_PIN    19      // Pin Kontrol Buzzer Alarm (GPIO 19)
-#define LED_PIN       2       // Pin Built-in LED Indikator (GPIO 2)
+// ==========================================================
+// 2. LCD I2C
+// ==========================================================
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-// Konfigurasi Trigger Relay (Sebagian besar relay module menggunakan ACTIVE LOW)
-#define RELAY_ON      LOW
-#define RELAY_OFF     HIGH
+// ==========================================================
+// 3. PIN ESP32
+// ==========================================================
+#define MQ_PIN       34
+#define DHTPIN       14
+#define BUZZER_PIN   13
+#define FAN_PIN      22
 
-// =================== 3. AMBANG BATAS LOKAL (FALLBACK HARDWARE) ===================
-const float THRESHOLD_TEMP_MAX_NORMAL = 28.0; // °C -> Suhu > 28°C kipas nyala
-const float THRESHOLD_HUM_MAX_NORMAL  = 70.0; // %  -> RH > 70% kipas nyala
-const float THRESHOLD_TEMP_DANGER     = 32.0; // °C -> Suhu > 32°C ALARM BAHAYA
-const int   THRESHOLD_GAS_DANGER      = 300;  // ppm -> Gas > 300 ALARM BAHAYA
+// ==========================================================
+// PIN I2C LCD
+// ==========================================================
+#define SDA_PIN      32
+#define SCL_PIN      33
 
-// Variabel Settings dari Server
-float suhuMax = 25.0;
-float kelembapanMax = 70.0;
-int gasThreshold = 1500;
-String modeFan = "auto";
-bool statusFanManual = false;
-
-// Inisialisasi Objek Sensor
+// ==========================================================
+// DHT22
+// ==========================================================
+#define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
-unsigned long lastSendTime = 0;
-unsigned long lastSettingsTime = 0;
-const unsigned long SETTINGS_INTERVAL_MS = 5000;
 
-// =================== SETUP ===================
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
-  Serial.println("\n==============================================");
-  Serial.println("  TobaccoGuard IoT - ESP32 Warehouse Monitor  ");
-  Serial.println("==============================================");
+// ==========================================================
+// BATAS GAS
+// ==========================================================
+#define GAS_THRESHOLD 1500
 
-  // Inisialisasi GPIO
-  pinMode(RELAY_FAN_PIN, OUTPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(GAS_PIN, INPUT);
+// ==========================================================
+// LOGIKA BUZZER & FAN
+// LOW  = ON
+// HIGH = OFF
+// ==========================================================
+#define BUZZER_ON  LOW
+#define BUZZER_OFF HIGH
 
-  // Default state: Kipas & Buzzer Mati
-  digitalWrite(RELAY_FAN_PIN, RELAY_OFF);
-  digitalWrite(BUZZER_PIN, LOW);
-  digitalWrite(LED_PIN, LOW);
+#define FAN_ON  LOW
+#define FAN_OFF HIGH
 
-  // Inisialisasi DHT
-  dht.begin();
-  Serial.println("[OK] Sensor DHT22 diinisialisasi.");
+// ==========================================================
+// TIMER SENSOR LOKAL
+// ==========================================================
+unsigned long previousMillisSensor = 0;
+const unsigned long sensorInterval = 1000; // Baca sensor & update LCD tiap 1 detik
 
-  // Hubungkan ke WiFi
-  connectToWiFi();
-}
+// Variabel penampung data sensor terakhir
+float lastTempC = 0.0;
+float lastHumidity = 0.0;
+int lastGasValue = 0;
+bool lastGasDanger = false;
+bool lastFanState = true; // Default ON
 
-// =================== LOOP UTAMA ===================
-void loop() {
-  // Cek dan pertahankan koneksi WiFi
-  if (WiFi.status() != WL_CONNECTED) {
-    connectToWiFi();
-  }
-
-  // Pengambilan settings berbasis timer
-  if (currentMillis - lastSettingsTime >= SETTINGS_INTERVAL_MS) {
-    lastSettingsTime = currentMillis;
-    if (WiFi.status() == WL_CONNECTED) {
-      getSettingsFromServer();
-    }
-  }
-
-  // Pengiriman data berbasis timer non-blocking
-  if (currentMillis - lastSendTime >= SEND_INTERVAL_MS) {
-    lastSendTime = currentMillis;
-    processAndSendData();
-  }
-}
-
-// =================== FUNGSI AMBIL SETTINGS ===================
-void getSettingsFromServer() {
-  HTTPClient http;
-  http.begin(SETTINGS_URL);
-  int httpResponseCode = http.GET();
-
-  if (httpResponseCode == 200) {
-    String payload = http.getString();
-    StaticJsonDocument<512> doc;
-    DeserializationError error = deserializeJson(doc, payload);
-
-    if (!error && doc["success"] == true) {
-      JsonObject data = doc["data"];
-      suhuMax = data["suhu_max"] | suhuMax;
-      kelembapanMax = data["kelembapan_max"] | kelembapanMax;
-      gasThreshold = data["gas_threshold"] | gasThreshold;
-      modeFan = data["mode_fan"].as<String>();
-      statusFanManual = data["status_fan_manual"] | statusFanManual;
-      Serial.println("[SETTINGS] Berhasil mengambil pengaturan terbaru.");
-    }
-  } else {
-    Serial.printf("[SETTINGS] Gagal mengambil pengaturan (HTTP %d). Menggunakan nilai terakhir.\n", httpResponseCode);
-  }
-  http.end();
-}
-
-// =================== FUNGSI KONEKSI WIFI ===================
-void connectToWiFi() {
+// ==========================================================
+// FUNGSI KONEKSI WIFI
+// ==========================================================
+void connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) return;
 
-  Serial.printf("\n[WiFi] Menghubungkan ke: %s", WIFI_SSID);
+  Serial.print("[WiFi] Menghubungkan ke: ");
+  Serial.println(WIFI_SSID);
+
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 25) {
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
     delay(500);
     Serial.print(".");
-    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // Blink LED saat mencoba koneksi
     attempts++;
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    digitalWrite(LED_PIN, HIGH);
-    Serial.println("\n[WiFi] Terhubung!");
-    Serial.print("[WiFi] IP Address ESP32: ");
+    Serial.println("\n[WiFi] Berhasil Terhubung!");
+    Serial.print("[WiFi] IP ESP32: ");
     Serial.println(WiFi.localIP());
   } else {
-    digitalWrite(LED_PIN, LOW);
-    Serial.println("\n[WiFi] Gagal terhubung. ESP32 tetap membaca sensor secara lokal.");
+    Serial.println("\n[WiFi] Gagal terhubung (Timeout). Melanjutkan operasi lokal...");
   }
 }
 
-// =================== FUNGSI BACA SENSOR & KIRIM API ===================
-void processAndSendData() {
-  // 1. Baca Sensor Suhu & Kelembapan DHT22
-  float suhu = dht.readTemperature();
-  float kelembapan = dht.readHumidity();
-
-  // Validasi pembacaan DHT22
-  if (isnan(suhu) || isnan(kelembapan)) {
-    Serial.println("[WARN] Gagal membaca dari sensor DHT22! Menggunakan nilai simulasi aman.");
-    suhu = 26.0;
-    kelembapan = 65.0;
+// ==========================================================
+// FUNGSI PENGIRIMAN DATA KE SERVER FLASK (HTTP POST)
+// ==========================================================
+void sendDataToServer(float suhu, float kelembapan, int gas, bool fanOn, bool alarmOn) {
+  if (WiFi.status() != WL_CONNECTED) {
+    connectWiFi();
+    if (WiFi.status() != WL_CONNECTED) return;
   }
 
-  // 2. Baca Sensor Gas MQ-135 (ADC 0 - 4095)
-  // Rumus konversi estimasi kasar sensor gas ke skala konsentrasi ppm
-  int rawGas = analogRead(GAS_PIN);
-  int gasPpm = map(rawGas, 0, 4095, 20, 500);
-
-  // 3. Logika Otomatisasi Aktuator (Relay Kipas & Buzzer Alarm)
-  bool statusFan = false;
-  bool statusAlarm = false;
-
-  // Aktifkan kipas berdasarkan mode (auto/manual)
-  if (modeFan == "manual") {
-    statusFan = statusFanManual;
-    digitalWrite(RELAY_FAN_PIN, statusFan ? RELAY_ON : RELAY_OFF);
-  } else {
-    // Mode Auto
-    if (suhu > suhuMax || kelembapan > kelembapanMax) {
-      statusFan = true;
-      digitalWrite(RELAY_FAN_PIN, RELAY_ON);
-    } else {
-      statusFan = false;
-      digitalWrite(RELAY_FAN_PIN, RELAY_OFF);
-    }
-  }
-
-  // Aktifkan alarm jika suhu kritis atau gas pekat terdeteksi
-  if (suhu > THRESHOLD_TEMP_DANGER || gasPpm > THRESHOLD_GAS_DANGER || kelembapan < 45.0) {
-    statusAlarm = true;
-    digitalWrite(BUZZER_PIN, HIGH); // Bunyikan alarm buzzer
-  } else {
-    statusAlarm = false;
-    digitalWrite(BUZZER_PIN, LOW);
-  }
-
-  // Tampilkan telemetri di Serial Monitor
-  Serial.printf("\n[SENSORS] Suhu: %.2f °C | RH: %.2f %% | Gas: %d ppm | Kipas: %s | Alarm: %s\n",
-                suhu, kelembapan, gasPpm,
-                statusFan ? "ON" : "OFF",
-                statusAlarm ? "BAHAYA" : "AMAN");
-
-  // 4. Kirim Data ke Server Flask Backend jika WiFi terhubung
-  if (WiFi.status() == WL_CONNECTED) {
-    sendToServer(suhu, kelembapan, gasPpm, statusFan, statusAlarm);
-  }
-}
-
-// =================== FUNGSI HTTP POST JSON ===================
-void sendToServer(float suhu, float kelembapan, int gas, bool statusFan, bool statusAlarm) {
   HTTPClient http;
   http.begin(SERVER_URL);
   http.addHeader("Content-Type", "application/json");
 
-  // Format Dokumen JSON
-  StaticJsonDocument<256> doc;
-  doc["suhu"] = round(suhu * 10.0) / 10.0;
-  doc["kelembapan"] = round(kelembapan * 10.0) / 10.0;
-  doc["gas"] = gas;
-  doc["status_fan"] = statusFan;
-  doc["status_alarm"] = statusAlarm;
+  // Format data JSON untuk API backend Flask
+  String payload = "{";
+  payload += "\"suhu\":" + String(isnan(suhu) ? 0.0 : suhu, 1) + ",";
+  payload += "\"kelembapan\":" + String(isnan(kelembapan) ? 0.0 : kelembapan, 1) + ",";
+  payload += "\"gas\":" + String(gas) + ",";
+  payload += "\"status_fan\":" + String(fanOn ? "true" : "false") + ",";
+  payload += "\"status_alarm\":" + String(alarmOn ? "true" : "false");
+  payload += "}";
 
-  String jsonPayload;
-  serializeJson(doc, jsonPayload);
+  int httpCode = http.POST(payload);
 
-  // Eksekusi POST
-  int httpResponseCode = http.POST(jsonPayload);
-
-  if (httpResponseCode > 0) {
-    String response = http.getString();
-    Serial.printf("[HTTP] POST Sukses (Code %d): %s\n", httpResponseCode, response.c_str());
+  if (httpCode > 0) {
+    Serial.print(">>> [SERVER POST] Sukses (HTTP ");
+    Serial.print(httpCode);
+    Serial.print(") Payload: ");
+    Serial.println(payload);
   } else {
-    Serial.printf("[HTTP] POST Gagal, Error: %s\n", http.errorToString(httpResponseCode).c_str());
+    Serial.print(">>> [SERVER POST] Gagal kirim: ");
+    Serial.println(http.errorToString(httpCode).c_str());
   }
 
   http.end();
+}
+
+// ==========================================================
+// FUNGSI BUZZER
+// ==========================================================
+void handleAlarm(bool gasDanger) {
+  if (gasDanger) {
+    // GAS BAHAYA
+    digitalWrite(BUZZER_PIN, BUZZER_ON);
+    Serial.println(">>> BUZZER : ON");
+  } else {
+    // GAS NORMAL
+    digitalWrite(BUZZER_PIN, BUZZER_OFF);
+    Serial.println(">>> BUZZER : OFF");
+  }
+}
+
+// ==========================================================
+// SETUP
+// ==========================================================
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+
+  Serial.println();
+  Serial.println("========================================");
+  Serial.println("   SISTEM MONITORING ESP32 & WEB CLOUD  ");
+  Serial.println("========================================");
+
+  // Inisialisasi Pin Output
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, BUZZER_OFF);
+
+  pinMode(FAN_PIN, OUTPUT);
+  digitalWrite(FAN_PIN, FAN_ON); // Fan selalu ON
+
+  pinMode(MQ_PIN, INPUT);
+
+  // Inisialisasi I2C LCD
+  Wire.begin(SDA_PIN, SCL_PIN);
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+
+  lcd.setCursor(0, 0);
+  lcd.print("Connecting WiFi");
+  lcd.setCursor(0, 1);
+  lcd.print(WIFI_SSID);
+
+  // Inisialisasi Sensor DHT22
+  dht.begin();
+
+  // Koneksi ke WiFi
+  connectWiFi();
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("System Ready...");
+  lcd.setCursor(0, 1);
+  if (WiFi.status() == WL_CONNECTED) {
+    lcd.print("WiFi Connected");
+  } else {
+    lcd.print("WiFi Offline");
+  }
+  delay(1500);
+  lcd.clear();
+
+  Serial.println("System Ready!");
+  Serial.println("----------------------------------------");
+  Serial.print("Server Target : ");
+  Serial.println(SERVER_URL);
+  Serial.print("Gas Threshold : ");
+  Serial.println(GAS_THRESHOLD);
+  Serial.println("----------------------------------------");
+}
+
+// ==========================================================
+// LOOP
+// ==========================================================
+void loop() {
+  unsigned long currentMillis = millis();
+
+  // ========================================================
+  // 1. BACA SENSOR & TAMPILKAN KE LCD (Setiap 1 detik)
+  // ========================================================
+  if (currentMillis - previousMillisSensor >= sensorInterval) {
+    previousMillisSensor = currentMillis;
+
+    // BACA DHT22
+    float tempC = dht.readTemperature();
+    float humidity = dht.readHumidity();
+
+    // BACA MQ SENSOR
+    int gasValue = analogRead(MQ_PIN);
+
+    // EVALUASI STATUS
+    bool isGasDanger = (gasValue > GAS_THRESHOLD);
+
+    // KONTROL FAN & BUZZER
+    digitalWrite(FAN_PIN, FAN_ON);
+    handleAlarm(isGasDanger);
+
+    // Simpan ke variabel global jika pembacaan valid
+    if (!isnan(tempC)) lastTempC = tempC;
+    if (!isnan(humidity)) lastHumidity = humidity;
+    lastGasValue = gasValue;
+    lastGasDanger = isGasDanger;
+    lastFanState = true;
+
+    // STATUS BUZZER FISIK
+    int buzzerState = digitalRead(BUZZER_PIN);
+
+    // SERIAL MONITOR LOG
+    Serial.println();
+    Serial.println("----------------------------------------");
+    Serial.print("Suhu        : ");
+    if (isnan(tempC)) Serial.print("ERROR"); else { Serial.print(tempC, 1); Serial.print(" C"); }
+    Serial.print(" | Kelembapan : ");
+    if (isnan(humidity)) Serial.print("ERROR"); else { Serial.print(humidity, 1); Serial.print(" %"); }
+    Serial.print(" | Gas : ");
+    Serial.println(gasValue);
+
+    Serial.print("Status Gas  : ");
+    Serial.println(isGasDanger ? "!!! GAS TERDETEKSI !!!" : "NORMAL");
+
+    Serial.print("Buzzer      : ");
+    Serial.println((buzzerState == BUZZER_ON) ? "ON" : "OFF");
+    Serial.println("Fan         : ON");
+
+    // UPDATE DISPLAY LCD
+    lcd.clear();
+    if (isGasDanger) {
+      lcd.setCursor(0, 0);
+      lcd.print("!! GAS BAHAYA !!");
+      lcd.setCursor(0, 1);
+      lcd.print("Gas:");
+      lcd.print(gasValue);
+    } else {
+      // Baris 1: Suhu & Kelembapan
+      lcd.setCursor(0, 0);
+      lcd.print("T:");
+      if (isnan(tempC)) lcd.print(lastTempC, 1); else { lcd.print(tempC, 1); }
+      lcd.print("C H:");
+      if (isnan(humidity)) lcd.print((int)lastHumidity); else { lcd.print((int)humidity); }
+      lcd.print("%");
+
+      // Baris 2: Gas & Status Fan
+      lcd.setCursor(0, 1);
+      lcd.print("G:");
+      lcd.print(gasValue);
+      lcd.print(WiFi.status() == WL_CONNECTED ? " [W]" : " [!]");
+      lcd.print(" Fan:ON");
+    }
+
+    // ========================================================
+    // 2. KIRIM DATA KE SERVER WEB FLASK (SINKRON DENGAN SERIAL)
+    // ========================================================
+    // Dikirim langsung setiap siklus pembacaan (tiap 1 detik)
+    sendDataToServer(lastTempC, lastHumidity, lastGasValue, lastFanState, lastGasDanger);
+  }
 }

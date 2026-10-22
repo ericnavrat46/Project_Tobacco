@@ -22,8 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let filterStartDate = '';
     let filterEndDate = '';
 
-    // Thresholds
-    const THRESHOLDS = {
+    // Thresholds (Default fallback, overridden dynamically by Settings)
+    let THRESHOLDS = {
         temp: { normalMin: 20.0, normalMax: 28.0, warnMax: 32.0 },
         humidity: { normalMin: 60.0, normalMax: 70.0, warnMin: 50.0, warnMax: 75.0 },
         gas: { normalMax: 150, warnMax: 300 }
@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const badgeStatusSuhu = document.getElementById('badgeStatusSuhu');
     const badgeStatusKelembapan = document.getElementById('badgeStatusKelembapan');
     const badgeStatusGas = document.getElementById('badgeStatusGas');
+    const sublabelSuhu = document.getElementById('sublabelSuhu');
+    const sublabelKelembapan = document.getElementById('sublabelKelembapan');
+    const sublabelGas = document.getElementById('sublabelGas');
     const badgeModeFan = document.getElementById('badgeModeFan');
     const badgeStatusFan = document.getElementById('badgeStatusFan');
     const iconFanRotate = document.getElementById('iconFanRotate');
@@ -143,6 +146,76 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    let latestGudangData = null;
+
+    // Render Metric Cards & Badges
+    function renderGudangMetrics(data) {
+        if (!data) return;
+
+        // Render Suhu
+        valSuhu.textContent = Number(data.suhu).toFixed(1);
+        const evalSuhu = evaluateTemp(data.suhu);
+        badgeStatusSuhu.textContent = evalSuhu.label;
+        badgeStatusSuhu.className = `badge rounded-pill px-2 py-1 ${evalSuhu.badgeClass}`;
+        cardSuhu.className = `metric-card h-100 ${evalSuhu.borderClass}`;
+
+        // Render Kelembapan
+        valKelembapan.textContent = Number(data.kelembapan).toFixed(1);
+        const evalHum = evaluateHumidity(data.kelembapan);
+        badgeStatusKelembapan.textContent = evalHum.label;
+        badgeStatusKelembapan.className = `badge rounded-pill px-2 py-1 ${evalHum.badgeClass}`;
+        cardKelembapan.className = `metric-card h-100 ${evalHum.borderClass}`;
+
+        // Render Gas
+        valGas.textContent = data.gas;
+        const evalGas = evaluateGas(data.gas);
+        badgeStatusGas.textContent = evalGas.label;
+        badgeStatusGas.className = `badge rounded-pill px-2 py-1 ${evalGas.badgeClass}`;
+        cardGas.className = `metric-card h-100 ${evalGas.borderClass}`;
+
+        // Render Fan
+        if (data.status_fan) {
+            badgeStatusFan.textContent = 'AKTIF';
+            badgeStatusFan.className = 'badge rounded-pill px-2 py-1 bg-success text-white';
+            iconFanRotate.classList.add('fan-spinning', 'text-success');
+        } else {
+            badgeStatusFan.textContent = 'MATI';
+            badgeStatusFan.className = 'badge rounded-pill px-2 py-1 bg-secondary text-white';
+            iconFanRotate.classList.remove('fan-spinning', 'text-success');
+        }
+
+        // Render Alarm & Emergency Banner
+        if (data.status_alarm) {
+            badgeStatusAlarm.textContent = 'BAHAYA (ON)';
+            badgeStatusAlarm.className = 'badge rounded-pill px-2 py-1 alarm-active-indicator';
+            
+            // Show banner
+            alarmBanner.classList.remove('d-none');
+            alarmBannerDetails.textContent = `Peringatan: Suhu ${data.suhu}°C, Kelembapan ${data.kelembapan}%, Gas ${data.gas} ppm. Status fan: ${data.status_fan ? 'ON' : 'OFF'}`;
+
+            // Play Audio Chime
+            if (window.alarmAudio) {
+                window.alarmAudio.startAlarm();
+            }
+
+            // Browser Notification
+            sendBrowserNotification(
+                "PERINGATAN GUDANG TEMBAKAU",
+                `Sistem Alarm Aktif! Suhu: ${data.suhu}°C | Gas: ${data.gas} ppm`
+            );
+        } else {
+            badgeStatusAlarm.textContent = 'AMAN';
+            badgeStatusAlarm.className = 'badge rounded-pill px-2 py-1 bg-success-subtle text-success border border-success-subtle';
+            alarmBanner.classList.add('d-none');
+            if (window.alarmAudio) {
+                window.alarmAudio.stopAlarm();
+            }
+        }
+
+        // Last update label
+        lblLastUpdate.textContent = formatDateTimeDisplay(data.timestamp);
+    }
+
     // 1. Fetch Latest Gudang Data
     async function fetchLatestGudang() {
         try {
@@ -150,70 +223,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const json = await res.json();
             if (!json.success || !json.data) return;
 
-            const data = json.data;
-
-            // Render Suhu
-            valSuhu.textContent = Number(data.suhu).toFixed(1);
-            const evalSuhu = evaluateTemp(data.suhu);
-            badgeStatusSuhu.textContent = evalSuhu.label;
-            badgeStatusSuhu.className = `badge rounded-pill px-2 py-1 ${evalSuhu.badgeClass}`;
-            cardSuhu.className = `metric-card h-100 ${evalSuhu.borderClass}`;
-
-            // Render Kelembapan
-            valKelembapan.textContent = Number(data.kelembapan).toFixed(1);
-            const evalHum = evaluateHumidity(data.kelembapan);
-            badgeStatusKelembapan.textContent = evalHum.label;
-            badgeStatusKelembapan.className = `badge rounded-pill px-2 py-1 ${evalHum.badgeClass}`;
-            cardKelembapan.className = `metric-card h-100 ${evalHum.borderClass}`;
-
-            // Render Gas
-            valGas.textContent = data.gas;
-            const evalGas = evaluateGas(data.gas);
-            badgeStatusGas.textContent = evalGas.label;
-            badgeStatusGas.className = `badge rounded-pill px-2 py-1 ${evalGas.badgeClass}`;
-            cardGas.className = `metric-card h-100 ${evalGas.borderClass}`;
-
-            // Render Fan
-            if (data.status_fan) {
-                badgeStatusFan.textContent = 'AKTIF';
-                badgeStatusFan.className = 'badge rounded-pill px-2 py-1 bg-success text-white';
-                iconFanRotate.classList.add('fan-spinning', 'text-success');
-            } else {
-                badgeStatusFan.textContent = 'MATI';
-                badgeStatusFan.className = 'badge rounded-pill px-2 py-1 bg-secondary text-white';
-                iconFanRotate.classList.remove('fan-spinning', 'text-success');
-            }
-
-            // Render Alarm & Emergency Banner
-            if (data.status_alarm) {
-                badgeStatusAlarm.textContent = 'BAHAYA (ON)';
-                badgeStatusAlarm.className = 'badge rounded-pill px-2 py-1 alarm-active-indicator';
-                
-                // Show banner
-                alarmBanner.classList.remove('d-none');
-                alarmBannerDetails.textContent = `Peringatan: Suhu ${data.suhu}°C, Kelembapan ${data.kelembapan}%, Gas ${data.gas} ppm. Status fan: ${data.status_fan ? 'ON' : 'OFF'}`;
-
-                // Play Audio Chime
-                if (window.alarmAudio) {
-                    window.alarmAudio.startAlarm();
-                }
-
-                // Browser Notification
-                sendBrowserNotification(
-                    "PERINGATAN GUDANG TEMBAKAU",
-                    `Sistem Alarm Aktif! Suhu: ${data.suhu}°C | Gas: ${data.gas} ppm`
-                );
-            } else {
-                badgeStatusAlarm.textContent = 'AMAN';
-                badgeStatusAlarm.className = 'badge rounded-pill px-2 py-1 bg-success-subtle text-success border border-success-subtle';
-                alarmBanner.classList.add('d-none');
-                if (window.alarmAudio) {
-                    window.alarmAudio.stopAlarm();
-                }
-            }
-
-            // Last update label
-            lblLastUpdate.textContent = formatDateTimeDisplay(data.timestamp);
+            latestGudangData = json.data;
+            renderGudangMetrics(latestGudangData);
 
         } catch (e) {
             console.error('Error fetching latest gudang:', e);
@@ -575,25 +586,46 @@ document.addEventListener('DOMContentLoaded', () => {
     async function refreshAll() {
         if (isFetching) return;
         isFetching = true;
-        refreshIcon.classList.add('fan-spinning');
+        refreshIcon?.classList.add('fan-spinning');
 
         try {
+            await fetchSettings();
             await Promise.all([
                 fetchLatestGudang(),
                 fetchConveyorInfo(),
                 fetchGudangHistory(),
-                fetchConveyorHistory(),
-                fetchSettings()
+                fetchConveyorHistory()
             ]);
-            navConnectionStatus.textContent = 'Live (5s)';
-            navConnectionStatus.className = 'fw-semibold text-success';
+            if (navConnectionStatus) {
+                navConnectionStatus.textContent = 'Live (1s)';
+                navConnectionStatus.className = 'fw-semibold text-success';
+            }
         } catch (e) {
             console.error('Refresh all error:', e);
-            navConnectionStatus.textContent = 'Koneksi Terputus';
-            navConnectionStatus.className = 'fw-semibold text-danger';
+            if (navConnectionStatus) {
+                navConnectionStatus.textContent = 'Koneksi Terputus';
+                navConnectionStatus.className = 'fw-semibold text-danger';
+            }
         } finally {
             isFetching = false;
-            refreshIcon.classList.remove('fan-spinning');
+            refreshIcon?.classList.remove('fan-spinning');
+        }
+    }
+
+    // Fast polling untuk telemetri sensor real-time (setiap 1 detik)
+    async function refreshTelemetryRealtime() {
+        try {
+            await fetchLatestGudang();
+            if (navConnectionStatus) {
+                navConnectionStatus.textContent = 'Live (1s)';
+                navConnectionStatus.className = 'fw-semibold text-success';
+            }
+        } catch (e) {
+            console.error('Telemetry polling error:', e);
+            if (navConnectionStatus) {
+                navConnectionStatus.textContent = 'Koneksi Terputus';
+                navConnectionStatus.className = 'fw-semibold text-danger';
+            }
         }
     }
 
@@ -625,7 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.alarmAudio) {
             window.alarmAudio.stopAlarm();
         }
-        alarmBanner.classList.add('d-none');
+        alarmBanner?.classList.add('d-none');
     });
 
     // Manual Refresh Button
@@ -637,8 +669,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btnApplyFilter?.addEventListener('click', () => {
         filterStartDate = inputStartDate.value;
         filterEndDate = inputEndDate.value;
-        document.getElementById('lblChartRange').textContent = 
-            `Rentang: ${filterStartDate || 'Awal'} s/d ${filterEndDate || 'Kini'}`;
+        const lblRange = document.getElementById('lblChartRange');
+        if (lblRange) {
+            lblRange.textContent = `Rentang: ${filterStartDate || 'Awal'} s/d ${filterEndDate || 'Kini'}`;
+        }
         refreshAll();
     });
 
@@ -647,26 +681,71 @@ document.addEventListener('DOMContentLoaded', () => {
         inputEndDate.value = '';
         filterStartDate = '';
         filterEndDate = '';
-        document.getElementById('lblChartRange').textContent = 'Histori sensor gudang tembakau';
+        const lblRange = document.getElementById('lblChartRange');
+        if (lblRange) {
+            lblRange.textContent = 'Histori sensor gudang tembakau';
+        }
         refreshAll();
     });
 
-    // 6. Settings Handlers (Update Fan Mode Badge Only)
+    // 6. Settings Handlers & Dynamic Threshold Synchronization
+    function applySettingsToThresholds(settings) {
+        if (!settings) return;
+        currentSettings = settings;
+
+        // 1. Sinkronkan Suhu Maks
+        if (settings.suhu_max !== undefined && settings.suhu_max !== null) {
+            const sMax = Number(settings.suhu_max);
+            THRESHOLDS.temp.normalMax = sMax;
+            THRESHOLDS.temp.warnMax = sMax + 3.0;
+            if (sublabelSuhu) {
+                sublabelSuhu.textContent = `Ideal: ${THRESHOLDS.temp.normalMin}° - ${sMax.toFixed(1)}°C`;
+            }
+        }
+
+        // 2. Sinkronkan Kelembapan Maks
+        if (settings.kelembapan_max !== undefined && settings.kelembapan_max !== null) {
+            const hMax = Number(settings.kelembapan_max);
+            THRESHOLDS.humidity.normalMax = hMax;
+            THRESHOLDS.humidity.warnMax = hMax + 5.0;
+            if (sublabelKelembapan) {
+                sublabelKelembapan.textContent = `Ideal: ${THRESHOLDS.humidity.normalMin}% - ${hMax.toFixed(1)}%`;
+            }
+        }
+
+        // 3. Sinkronkan Batas Gas Berbahaya
+        if (settings.gas_threshold !== undefined && settings.gas_threshold !== null) {
+            const gThresh = Number(settings.gas_threshold);
+            THRESHOLDS.gas.warnMax = gThresh;
+            THRESHOLDS.gas.normalMax = Math.round(gThresh * 0.7);
+            if (sublabelGas) {
+                sublabelGas.textContent = `Batas Aman: < ${gThresh}`;
+            }
+        }
+
+        // 4. Update badge mode kipas
+        if (badgeModeFan) {
+            if (settings.mode_fan === 'manual') {
+                badgeModeFan.textContent = 'MANUAL';
+                badgeModeFan.className = 'badge bg-warning text-dark rounded-pill px-2 py-1';
+            } else {
+                badgeModeFan.textContent = 'AUTO';
+                badgeModeFan.className = 'badge bg-secondary rounded-pill px-2 py-1';
+            }
+        }
+
+        // Re-render kartu metrik jika data sensor sudah ada agar status badge langsung mengikuti batas baru
+        if (latestGudangData) {
+            renderGudangMetrics(latestGudangData);
+        }
+    }
+
     async function fetchSettings() {
-        if(!badgeModeFan) return;
         try {
             const res = await fetch(API.settings);
             const json = await res.json();
             if (json.success && json.data) {
-                currentSettings = json.data;
-                // Update indicator Mode Fan di card Aktuator
-                if (currentSettings.mode_fan === 'manual') {
-                    badgeModeFan.textContent = 'MANUAL';
-                    badgeModeFan.className = 'badge bg-warning text-dark rounded-pill px-2 py-1';
-                } else {
-                    badgeModeFan.textContent = 'AUTO';
-                    badgeModeFan.className = 'badge bg-secondary rounded-pill px-2 py-1';
-                }
+                applySettingsToThresholds(json.data);
             }
         } catch (e) {
             console.error('Error fetching settings:', e);
@@ -675,8 +754,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialization
     initCharts();
-    refreshAll();
+    fetchSettings().finally(() => {
+        refreshAll();
+    });
 
-    // Start 5-Second Interval Polling
-    refreshTimer = setInterval(refreshAll, 5000);
+    // Polling telemetri sensor setiap 1 detik agar sinkron dengan Serial Monitor
+    setInterval(refreshTelemetryRealtime, 1000);
+
+    // Refresh grafik, riwayat tabel, dan pengaturan setiap 3 detik
+    refreshTimer = setInterval(refreshAll, 3000);
 });

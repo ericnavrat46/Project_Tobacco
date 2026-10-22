@@ -12,6 +12,7 @@ Usage:
     python simulator.py --hazard        # Simulasi kondisi darurat / suhu tinggi
 """
 
+import os
 import sys
 import time
 import math

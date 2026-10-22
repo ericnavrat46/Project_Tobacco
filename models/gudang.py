@@ -15,28 +15,50 @@ class MonitoringGudang(db.Model):
 
     @property
     def status_suhu(self):
-        """Menentukan status suhu: normal, warning, danger"""
-        if Config.TEMP_NORMAL_MIN <= self.suhu <= Config.TEMP_NORMAL_MAX:
+        """Menentukan status suhu: normal, warning, danger berdasarkan Pengaturan"""
+        try:
+            from models.settings import Settings
+            s = Settings.query.get(1)
+            t_max = float(s.suhu_max) if s and s.suhu_max is not None else Config.TEMP_NORMAL_MAX
+        except Exception:
+            t_max = Config.TEMP_NORMAL_MAX
+
+        if Config.TEMP_NORMAL_MIN <= self.suhu <= t_max:
             return 'normal'
-        elif self.suhu <= Config.TEMP_WARNING_MAX and self.suhu >= (Config.TEMP_NORMAL_MIN - 4.0):
+        elif self.suhu <= (t_max + 3.0) and self.suhu >= (Config.TEMP_NORMAL_MIN - 4.0):
             return 'warning'
         return 'danger'
 
     @property
     def status_kelembapan(self):
-        """Menentukan status kelembapan: normal, warning, danger"""
-        if Config.HUMIDITY_NORMAL_MIN <= self.kelembapan <= Config.HUMIDITY_NORMAL_MAX:
+        """Menentukan status kelembapan: normal, warning, danger berdasarkan Pengaturan"""
+        try:
+            from models.settings import Settings
+            s = Settings.query.get(1)
+            h_max = float(s.kelembapan_max) if s and s.kelembapan_max is not None else Config.HUMIDITY_NORMAL_MAX
+        except Exception:
+            h_max = Config.HUMIDITY_NORMAL_MAX
+
+        if Config.HUMIDITY_NORMAL_MIN <= self.kelembapan <= h_max:
             return 'normal'
-        elif Config.HUMIDITY_WARNING_MIN <= self.kelembapan <= Config.HUMIDITY_WARNING_MAX:
+        elif Config.HUMIDITY_WARNING_MIN <= self.kelembapan <= (h_max + 5.0):
             return 'warning'
         return 'danger'
 
     @property
     def status_gas(self):
-        """Menentukan status gas: normal, warning, danger"""
-        if self.gas <= Config.GAS_NORMAL_MAX:
+        """Menentukan status gas: normal, warning, danger berdasarkan Pengaturan"""
+        try:
+            from models.settings import Settings
+            s = Settings.query.get(1)
+            g_max = int(s.gas_threshold) if s and s.gas_threshold is not None else Config.GAS_NORMAL_MAX
+        except Exception:
+            g_max = Config.GAS_NORMAL_MAX
+
+        g_normal = int(g_max * 0.7) if g_max > 300 else Config.GAS_NORMAL_MAX
+        if self.gas <= g_normal:
             return 'normal'
-        elif self.gas <= Config.GAS_WARNING_MAX:
+        elif self.gas <= g_max:
             return 'warning'
         return 'danger'
 
