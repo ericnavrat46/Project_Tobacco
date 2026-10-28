@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Export Data Laporan - Monitoring Gudang & Conveyor{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-lg-4 py-4">
+    <!-- Top Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-4">
+        <div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="/" class="btn btn-outline-secondary btn-sm rounded-circle p-2 icon-btn" title="Kembali ke Dashboard">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <h1 class="h3 fw-bold mb-0">Pusat Ekspor Data Laporan IoT</h1>
+            </div>
+            <p class="text-secondary small mb-0 mt-1">
+                Unduh rekam data historis monitoring gudang tembakau dan hasil klasifikasi conveyor dalam format Microsoft Excel (.xlsx) atau CSV (.csv).
+            </p>
+        </div>
+        <div>
+            <a href="/" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-speedometer2 me-1"></i> Kembali ke Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Export Configuration Cards -->
+    <div class="row g-4 mb-4">
+        <!-- 1. Export Monitoring Gudang -->
+        <div class="col-12 col-lg-6">
+            <div class="dashboard-card h-100 p-4">
+                <div class="d-flex align-items-center gap-3 mb-3 pb-3 border-bottom">
+                    <div class="brand-icon-box" style="background: rgba(16, 185, 129, 0.15);">
+                        <i class="bi bi-building fs-4 text-emerald"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0">1. Data Telemetri Gudang (ESP32)</h5>
+                        <small class="text-secondary">Suhu, Kelembapan, Konsentrasi Gas, Status Fan & Alarm</small>
+                    </div>
+                </div>
+
+                <form id="formExportGudang" class="d-flex flex-column gap-3">
+                    <!-- Quick Date Presets -->
+                    <div>
+                        <label class="form-label small fw-semibold text-secondary mb-1">Preset Rentang Cepat:</label>
+                        <div class="d-flex flex-wrap gap-1">
+                            <button type="button" class="btn btn-outline-secondary btn-sm preset-btn" data-target="gudang" data-preset="today">Hari Ini</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm preset-btn" data-target="gudang" data-preset="7days">7 Hari Terakhir</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm preset-btn" data-target="gudang" data-preset="30days">30 Hari Terakhir</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm preset-btn" data-target="gudang" data-preset="all">Semua Riwayat</button>
+                        </div>
+                    </div>
+
+                    <!-- Date Pickers -->
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Tanggal Mulai:</label>
+                            <input type="date" class="form-control form-control-sm" id="gudangStartDate">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Tanggal Selesai:</label>
+                            <input type="date" class="form-control form-control-sm" id="gudangEndDate">
+                        </div>
+                    </div>
+
+                    <!-- Format Choice -->
+                    <div>
+                        <label class="form-label small fw-semibold text-secondary mb-1">Format Berkas:</label>
+                        <div class="d-flex gap-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="formatGudang" id="fmtGudangExcel" value="excel" checked>
+                                <label class="form-check-label small fw-semibold" for="fmtGudangExcel">
+                                    <i class="bi bi-file-earmark-excel text-success me-1"></i> Microsoft Excel (.xlsx)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="formatGudang" id="fmtGudangCsv" value="csv">
+                                <label class="form-check-label small fw-semibold" for="fmtGudangCsv">
+                                    <i class="bi bi-file-earmark-text text-primary me-1"></i> CSV (.csv)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 pt-2 border-top">
+                        <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" id="btnPreviewGudang">
+                            <i class="bi bi-eye me-1"></i> Pratinjau (Preview)
+                        </button>
+                        <button type="button" class="btn btn-emerald btn-sm flex-fill" id="btnDownloadGudang">
+                            <i class="bi bi-download me-1"></i> Unduh Berkas
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 2. Export Klasifikasi Daun -->
+        <div class="col-12 col-lg-6">
+            <div class="dashboard-card h-100 p-4">
+                <div class="d-flex align-items-center gap-3 mb-3 pb-3 border-bottom">
+                    <div class="brand-icon-box" style="background: rgba(245, 158, 11, 0.15);">
+                        <i class="bi bi-boxes fs-4 text-warning"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-0">2. Data Klasifikasi Daun (Wemos)</h5>
+                        <small class="text-secondary">Kategori Mutu (Wrapper, Binder, Filler) & Confidence Score</small>
+                    </div>
+                </div>
+
+                <form id="formExportConveyor" class="d-flex flex-column gap-3">
+                    <!-- Quick Date Presets -->
+                    <div>
+                        <label class="form-label small fw-semibold text-secondary mb-1">Preset Rentang Cepat:</label>
+                        <div class="d-flex flex-wrap gap-1">
+                            <button type="button" class="btn btn-outline-secondary btn-sm preset-btn" data-target="conveyor" data-preset="today">Hari Ini</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm preset-btn" data-target="conveyor" data-preset="7days">7 Hari Terakhir</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm preset-btn" data-target="conveyor" data-preset="30days">30 Hari Terakhir</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm preset-btn" data-target="conveyor" data-preset="all">Semua Riwayat</button>
+                        </div>
+                    </div>
+
+                    <!-- Date Pickers -->
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Tanggal Mulai:</label>
+                            <input type="date" class="form-control form-control-sm" id="conveyorStartDate">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Tanggal Selesai:</label>
+                            <input type="date" class="form-control form-control-sm" id="conveyorEndDate">
+                        </div>
+                    </div>
+
+                    <!-- Format Choice -->
+                    <div>
+                        <label class="form-label small fw-semibold text-secondary mb-1">Format Berkas:</label>
+                        <div class="d-flex gap-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="formatConveyor" id="fmtConveyorExcel" value="excel" checked>
+                                <label class="form-check-label small fw-semibold" for="fmtConveyorExcel">
+                                    <i class="bi bi-file-earmark-excel text-success me-1"></i> Microsoft Excel (.xlsx)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="formatConveyor" id="fmtConveyorCsv" value="csv">
+                                <label class="form-check-label small fw-semibold" for="fmtConveyorCsv">
+                                    <i class="bi bi-file-earmark-text text-primary me-1"></i> CSV (.csv)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 pt-2 border-top">
+                        <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" id="btnPreviewConveyor">
+                            <i class="bi bi-eye me-1"></i> Pratinjau (Preview)
+                        </button>
+                        <button type="button" class="btn btn-emerald btn-sm flex-fill" id="btnDownloadConveyor">
+                            <i class="bi bi-download me-1"></i> Unduh Berkas
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Preview Card (Appears on Preview button click) -->
+    <div class="dashboard-card p-4 d-none" id="previewCard">
+        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-table text-emerald fs-5"></i>
+                <h5 class="fw-bold mb-0" id="previewTitle">Pratinjau Data Ekspor</h5>
+                <span class="badge bg-secondary" id="previewCountBadge">0 Data</span>
+            </div>
+            <button type="button" class="btn-close" id="btnClosePreview" aria-label="Tutup"></button>
+        </div>
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-custom table-hover align-middle mb-0" id="previewTable">
+                <thead id="previewTableHead"></thead>
+                <tbody id="previewTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/export.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,31 @@
+{
+  "model_architecture": "MobileNetV2",
+  "input_shape": [
+    224,
+    224,
+    3
+  ],
+  "classes": [
+    "filler",
+    "binder",
+    "wrapper"
+  ],
+  "class_mapping": {
+    "0": {
+      "code": "filler",
+      "quality": "Low Quality"
+    },
+    "1": {
+      "code": "binder",
+      "quality": "Medium Quality"
+    },
+    "2": {
+      "code": "wrapper",
+      "quality": "High Quality"
+    }
+  },
+  "validation_accuracy": 0.8661,
+  "validation_loss": 0.3191,
+  "dataset_total_samples": 1829,
+  "training_epochs": 8
+}
