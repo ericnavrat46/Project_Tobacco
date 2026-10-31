@@ -22,11 +22,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let filterStartDate = '';
     let filterEndDate = '';
 
-    // Thresholds
+    // Dynamic Thresholds (Disinkronkan otomatis dari Settings DB / API)
     const THRESHOLDS = {
-        temp: { normalMin: 20.0, normalMax: 28.0, warnMax: 32.0 },
+        temp: { normalMin: 20.0, normalMax: 25.0, warnMax: 29.0 },
         humidity: { normalMin: 60.0, normalMax: 70.0, warnMin: 50.0, warnMax: 75.0 },
-        gas: { normalMax: 150, warnMax: 300 }
+        gas: { normalMax: 750, warnMax: 1500 }
     };
 
     // DOM Elements - Metrics
@@ -98,6 +98,54 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Sinkronkan Thresholds dengan DOM dan objek state THRESHOLDS
+    function applyThresholdSettings(s) {
+        if (!s) return;
+
+        // 1. Update Fan Mode Badge
+        if (badgeModeFan && s.mode_fan) {
+            if (s.mode_fan === 'manual') {
+                badgeModeFan.textContent = 'MANUAL';
+                badgeModeFan.className = 'badge bg-warning text-dark rounded-pill px-2 py-1';
+            } else {
+                badgeModeFan.textContent = 'AUTO';
+                badgeModeFan.className = 'badge bg-secondary rounded-pill px-2 py-1';
+            }
+        }
+
+        // 2. Update Dynamic Thresholds
+        if (s.suhu_max != null) {
+            const sMax = parseFloat(s.suhu_max);
+            THRESHOLDS.temp.normalMax = sMax;
+            THRESHOLDS.temp.warnMax = sMax + 4.0;
+        }
+        if (s.kelembapan_max != null) {
+            const hMax = parseFloat(s.kelembapan_max);
+            THRESHOLDS.humidity.normalMax = hMax;
+            THRESHOLDS.humidity.warnMax = hMax + 5.0;
+        }
+        if (s.gas_threshold != null) {
+            const gThresh = parseInt(s.gas_threshold);
+            THRESHOLDS.gas.warnMax = gThresh;
+            THRESHOLDS.gas.normalMax = Math.round(gThresh * 0.5);
+        }
+
+        // 3. Update Sublabels on Metric Cards
+        const lblIdealSuhu = document.getElementById('lblIdealSuhu');
+        const lblIdealKelembapan = document.getElementById('lblIdealKelembapan');
+        const lblBatasGas = document.getElementById('lblBatasGas');
+
+        if (lblIdealSuhu) {
+            lblIdealSuhu.textContent = `Batas Maks: ${THRESHOLDS.temp.normalMax.toFixed(1)}°C`;
+        }
+        if (lblIdealKelembapan) {
+            lblIdealKelembapan.textContent = `Batas Maks: ${THRESHOLDS.humidity.normalMax.toFixed(1)}%`;
+        }
+        if (lblBatasGas) {
+            lblBatasGas.textContent = `Batas Bahaya: > ${THRESHOLDS.gas.warnMax} ppm`;
+        }
+    }
+
     // Helper: Determine Status Evaluation
     function evaluateTemp(val) {
         if (val >= THRESHOLDS.temp.normalMin && val <= THRESHOLDS.temp.normalMax) {
@@ -112,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function evaluateHumidity(val) {
         if (val >= THRESHOLDS.humidity.normalMin && val <= THRESHOLDS.humidity.normalMax) {
             return { status: 'normal', label: 'Optimal', badgeClass: 'badge-status-normal', borderClass: 'status-border-normal' };
-        } else if (val >= THRESHOLDS.humidity.warnMin && val <= THRESHOLDS.humidity.warnMax) {
+        } else if (val >= (THRESHOLDS.humidity.normalMin - 10.0) && val <= THRESHOLDS.humidity.warnMax) {
             return { status: 'warning', label: 'Waspada', badgeClass: 'badge-status-warning', borderClass: 'status-border-warning' };
         } else {
             return { status: 'danger', label: 'Bahaya (Resiko Jamur/Kering)', badgeClass: 'badge-status-danger', borderClass: 'status-border-danger' };
@@ -148,9 +196,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(API.gudangLatest);
             const json = await res.json();
-            if (!json.success || !json.data) return;
-
             const data = json.data;
+
+            // Sinkronkan thresholds jika ada di data sensor terbaru
+            if (data.thresholds) {
+                applyThresholdSettings(data.thresholds);
+            }
 
             // Render Suhu
             valSuhu.textContent = Number(data.suhu).toFixed(1);
@@ -522,22 +573,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         '#b45309', // Binder: Rich Cigar Brown
                         '#78350f'  // Filler: Deep Clay Leaf
                     ],
-                    borderWidth: 2,
-                    borderColor: isDark ? '#1e293b' : '#ffffff'
+                    borderWidth: 1,
+                    borderColor: isDark ? '#16181d' : '#ffffff'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '68%',
+                cutout: '76%',
                 plugins: {
                     legend: {
                         position: 'bottom',
                         labels: {
                             color: textColor,
-                            font: { family: 'Plus Jakarta Sans', weight: '600' },
+                            font: { family: 'Plus Jakarta Sans', weight: '500', size: 11 },
                             usePointStyle: true,
-                            padding: 15
+                            padding: 12
                         }
                     },
                     tooltip: {
@@ -677,21 +728,14 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshAll();
     });
 
-    // 6. Settings Handlers (Update Fan Mode Badge Only)
+    // 6. Settings Handlers (Sinkronkan Mode Fan & Ambang Batas Sensor)
     async function fetchSettings() {
-        if(!badgeModeFan) return;
         try {
             const res = await fetch(API.settings);
             const json = await res.json();
             if (json.success && json.data) {
                 currentSettings = json.data;
-                if (currentSettings.mode_fan === 'manual') {
-                    badgeModeFan.textContent = 'MANUAL';
-                    badgeModeFan.className = 'badge bg-warning text-dark rounded-pill px-2 py-1';
-                } else {
-                    badgeModeFan.textContent = 'AUTO';
-                    badgeModeFan.className = 'badge bg-secondary rounded-pill px-2 py-1';
-                }
+                applyThresholdSettings(currentSettings);
             }
         } catch (e) {
             console.error('Error fetching settings:', e);

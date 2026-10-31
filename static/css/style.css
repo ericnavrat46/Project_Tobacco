@@ -1,204 +1,183 @@
-/* =========================================================
-   Tobacco Monitoring IoT Dashboard - Custom Styling
-   ========================================================= */
+/* ==========================================================================
+   TobaccoGuard Industrial IoT - Anti-Slop Design System
+   Crafted following Leonxlnx/taste-skill principles for authentic telemetry
+   ========================================================================== */
 
 :root {
-    --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    
-    /* Emerald Green Primary Theme */
-    --primary-emerald: #10b981;
-    --primary-emerald-dark: #059669;
-    --primary-emerald-light: #ecfdf5;
-    
-    /* Status Colors */
-    --status-normal: #10b981;
-    --status-warning: #f59e0b;
-    --status-danger: #ef4444;
-    
-    /* Tobacco Classification Colors */
-    --tobacco-wrapper: #f59e0b; /* Golden Amber */
-    --tobacco-binder: #b45309;  /* Rich Leather/Cigar */
-    --tobacco-filler: #78350f;  /* Deep Earthy Leaf */
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, Menlo, monospace;
 
-    /* Light Theme Tokens */
-    --bg-page: #f8fafc;
+    /* Authentic Tobacco Craft Palette */
+    --tobacco-primary: #8c4a16;
+    --tobacco-primary-hover: #733c10;
+    --tobacco-accent: #d97706;
+    --tobacco-wrapper: #b45309;       /* Golden Cured Amber */
+    --tobacco-binder: #78350f;        /* Rich Aged Cigar Leaf */
+    --tobacco-filler: #451a03;        /* Deep Earthy Leaf */
+
+    /* Telemetry State Palette (Restrained, not neon) */
+    --status-normal: #15803d;         /* Forest Green */
+    --status-normal-bg: rgba(21, 128, 61, 0.08);
+    --status-normal-border: rgba(21, 128, 61, 0.22);
+    --status-warning: #b45309;        /* Warm Industrial Amber */
+    --status-warning-bg: rgba(180, 83, 9, 0.09);
+    --status-warning-border: rgba(180, 83, 9, 0.22);
+    --status-danger: #b91c1c;         /* Crimson Alarm */
+    --status-danger-bg: rgba(185, 28, 28, 0.09);
+    --status-danger-border: rgba(185, 28, 28, 0.24);
+
+    /* Light Theme (Tactile warm paper / ivory tone) */
+    --bg-page: #fbfbfa;
     --bg-surface: #ffffff;
-    --bg-surface-soft: #f1f5f9;
-    --border-color: #e2e8f0;
-    --text-primary: #0f172a;
-    --text-secondary: #64748b;
-    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-    --card-shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+    --bg-surface-soft: #f4f3ee;
+    --border-color: #e5e3dc;
+    --border-color-strong: #d2cfc5;
+    --text-primary: #121417;
+    --text-secondary: #5f6570;
+    --text-muted: #8c929e;
+
+    /* Restrained, flat elevations (Taste-Skill Rule: no floaty blur shadows) */
+    --card-shadow: none;
+    --card-shadow-hover: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 [data-bs-theme="dark"] {
-    --bg-page: #0b1120;
-    --bg-surface: #1e293b;
-    --bg-surface-soft: #0f172a;
-    --border-color: #334155;
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --primary-emerald-light: rgba(16, 185, 129, 0.15);
-    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
-    --card-shadow-hover: 0 10px 20px -3px rgba(0, 0, 0, 0.6);
+    /* Dark Theme (True neutral carbon/slate, no artificial navy/purple glow) */
+    --bg-page: #101114;
+    --bg-surface: #16181d;
+    --bg-surface-soft: #1d2027;
+    --border-color: #262933;
+    --border-color-strong: #363a47;
+    --text-primary: #f0f2f5;
+    --text-secondary: #969da8;
+    --text-muted: #5e6471;
+
+    --status-normal: #22c55e;
+    --status-normal-bg: rgba(34, 197, 94, 0.12);
+    --status-normal-border: rgba(34, 197, 94, 0.28);
+    --status-warning: #f59e0b;
+    --status-warning-bg: rgba(245, 158, 11, 0.12);
+    --status-warning-border: rgba(245, 158, 11, 0.28);
+    --status-danger: #ef4444;
+    --status-danger-bg: rgba(239, 68, 68, 0.14);
+    --status-danger-border: rgba(239, 68, 68, 0.32);
+
+    --card-shadow: none;
+    --card-shadow-hover: none;
 }
 
+/* Base Document */
 body {
-    font-family: var(--font-main);
+    font-family: var(--font-sans);
     background-color: var(--bg-page);
     color: var(--text-primary);
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    transition: background-color 0.25s ease, color 0.25s ease;
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* Navbar 3D Glassmorphism */
-.main-navbar {
-    background-color: var(--bg-surface);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.1), 
-                0 5px 15px -5px rgba(0, 0, 0, 0.05),
-                inset 0 1px 1px rgba(255, 255, 255, 0.6);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.3) !important;
-    transform: translateZ(0);
-    transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+/* Brand Display */
+.brand-title {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: var(--text-primary);
 }
 
-[data-bs-theme="dark"] .main-navbar {
-    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6), 
-                0 8px 16px -8px rgba(0, 0, 0, 0.5),
-                inset 0 1px 1px rgba(255, 255, 255, 0.08);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
-}
-
-.brand-icon-box {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    background: var(--primary-emerald-light);
+/* Industrial Navigation Link */
+.nav-link-industrial {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    font-weight: 500;
+    padding: 0.55rem 0.85rem;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
     display: flex;
     align-items: center;
-    justify-content: center;
 }
 
-.brand-title {
-    letter-spacing: -0.02em;
-    background: linear-gradient(135deg, #059669, #10b981);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+.nav-link-industrial:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-surface-soft);
 }
 
-.text-emerald {
-    color: var(--primary-emerald) !important;
-}
-
-.btn-emerald {
-    background-color: var(--primary-emerald);
-    color: #ffffff;
-    border: none;
+.nav-link-industrial.active {
+    color: var(--text-primary) !important;
+    background-color: var(--bg-surface-soft) !important;
+    border-color: var(--border-color-strong) !important;
     font-weight: 600;
-    transition: all 0.2s ease;
 }
 
-.btn-emerald:hover {
-    background-color: var(--primary-emerald-dark);
-    color: #ffffff;
-    transform: translateY(-1px);
-}
-
-.btn-emerald:active {
-    transform: translateY(0);
+/* Topbar & Header */
+.topbar {
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color) !important;
 }
 
 .icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
+    border-radius: 6px !important;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-color: var(--border-color);
+    color: var(--text-secondary);
 }
 
-/* Emergency Alert Banner */
-.emergency-banner {
-    background: linear-gradient(90deg, #dc2626, #b91c1c);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
-    animation: alertPulse 1.8s infinite;
+.icon-btn:hover {
+    background-color: var(--bg-surface-soft);
+    color: var(--text-primary);
 }
 
-@keyframes alertPulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.92; }
-    100% { opacity: 1; }
-}
-
-.alert-flashing-icon {
-    animation: flashIcon 0.8s infinite alternate;
-}
-
-@keyframes flashIcon {
-    from { transform: scale(1); }
-    to { transform: scale(1.15); color: #fef08a; }
-}
-
-/* Live Pulse Dot */
+/* Live Telemetry Pulse Pip */
 .live-indicator {
     background-color: var(--bg-surface-soft);
     color: var(--text-secondary);
     border: 1px solid var(--border-color);
-    font-size: 0.78rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
 }
 
 .pulse-dot {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     background-color: var(--status-normal);
     border-radius: 50%;
     display: inline-block;
-    box-shadow: 0 0 0 rgba(16, 185, 129, 0.4);
-    animation: pulseGlow 1.8s infinite;
 }
 
-@keyframes pulseGlow {
-    0% {
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-    }
-    70% {
-        box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
-    }
-}
-
-/* Metric / Stat Cards */
+/* ==========================================================================
+   KPIs & Metric Cards (Taste-Skill: Type & Numbers First, No Icon Bubbles)
+   ========================================================================== */
 .metric-card {
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
-    border-radius: 14px;
-    padding: 1.25rem;
-    box-shadow: var(--card-shadow);
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    border-radius: 8px;
+    padding: 1.15rem 1.25rem;
     position: relative;
-    overflow: hidden;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .metric-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--card-shadow-hover);
+    border-color: var(--border-color-strong);
 }
 
+/* Subdued indicator pip at top-left */
 .metric-card::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
+    top: -1px;
+    left: 12px;
+    right: 12px;
+    height: 2px;
     background: transparent;
-    transition: background 0.3s ease;
+    border-radius: 2px;
+    transition: background 0.2s ease;
 }
 
 .metric-card.status-border-normal::before {
@@ -213,37 +192,50 @@ body {
     background: var(--status-danger);
 }
 
-.metric-icon-box {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
+/* Value & Typography */
+.metric-sublabel {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
 }
 
 .metric-value {
-    font-size: 1.85rem;
-    font-weight: 700;
-    line-height: 1.2;
-    letter-spacing: -0.03em;
+    font-family: var(--font-mono);
+    font-size: 1.95rem;
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
 }
 
 .metric-unit {
-    font-size: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
     font-weight: 500;
     color: var(--text-secondary);
+    margin-left: 2px;
 }
 
-.metric-sublabel {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
+/* Metric Icon - Minimalist monochrome glyph, no colored bloated box */
+.metric-icon-box {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    background: var(--bg-surface-soft) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--border-color);
 }
 
-/* Fan Rotation Animation */
+/* Fan Rotation */
 .fan-spinning {
-    animation: spinFan 1.2s linear infinite;
+    animation: spinFan 1.4s linear infinite;
     transform-origin: center;
 }
 
@@ -252,185 +244,247 @@ body {
     to { transform: rotate(360deg); }
 }
 
-/* Custom Status Badges */
+/* ==========================================================================
+   Tactile Status Badges & Chips
+   ========================================================================== */
 .badge-status-normal {
-    background-color: rgba(16, 185, 129, 0.12);
-    color: #10b981;
-    border: 1px solid rgba(16, 185, 129, 0.25);
+    background-color: var(--status-normal-bg);
+    color: var(--status-normal);
+    border: 1px solid var(--status-normal-border);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
     font-weight: 600;
+    letter-spacing: 0.02em;
 }
 
 .badge-status-warning {
-    background-color: rgba(245, 158, 11, 0.12);
-    color: #f59e0b;
-    border: 1px solid rgba(245, 158, 11, 0.25);
+    background-color: var(--status-warning-bg);
+    color: var(--status-warning);
+    border: 1px solid var(--status-warning-border);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
     font-weight: 600;
+    letter-spacing: 0.02em;
 }
 
 .badge-status-danger {
-    background-color: rgba(239, 68, 68, 0.12);
-    color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.25);
+    background-color: var(--status-danger-bg);
+    color: var(--status-danger);
+    border: 1px solid var(--status-danger-border);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
     font-weight: 600;
+    letter-spacing: 0.02em;
 }
 
-/* Alarm Indicator Pill */
 .alarm-active-indicator {
-    background-color: #ef4444 !important;
+    background-color: var(--status-danger) !important;
     color: #ffffff !important;
-    animation: alarmBlink 1s infinite alternate;
+    border-color: var(--status-danger) !important;
+    animation: alarmPulse 1.2s infinite alternate;
 }
 
-@keyframes alarmBlink {
+@keyframes alarmPulse {
     from { opacity: 1; }
-    to { opacity: 0.55; }
+    to { opacity: 0.7; }
 }
 
-/* Content Cards & Sections */
+/* Emergency Alert Strip */
+.emergency-banner {
+    background-color: var(--status-danger-bg);
+    border: 1px solid var(--status-danger);
+    color: var(--status-danger);
+    border-radius: 8px;
+}
+
+/* ==========================================================================
+   Panels, Cards & Workstation Containers
+   ========================================================================== */
 .dashboard-card {
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
-    border-radius: 14px;
-    box-shadow: var(--card-shadow);
-    transition: background-color 0.25s ease, border-color 0.25s ease;
+    border-radius: 8px;
+    transition: border-color 0.15s ease;
 }
 
 .card-header-custom {
-    padding: 1rem 1.25rem;
+    padding: 0.85rem 1.15rem;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    background-color: transparent;
 }
 
-/* Custom Table Styling */
+.card-header-custom h6 {
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin-bottom: 0;
+}
+
+/* ==========================================================================
+   Tables & Data Logs (Taste-Skill: Rules and Alignment, No Zebra Stripes)
+   ========================================================================== */
 .table-custom {
     color: var(--text-primary);
     vertical-align: middle;
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
 .table-custom th {
-    font-size: 0.78rem;
-    font-weight: 700;
+    font-size: 0.72rem;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     color: var(--text-secondary);
     background-color: var(--bg-surface-soft);
     border-bottom: 1px solid var(--border-color);
-    padding: 0.75rem 1rem;
+    border-top: none;
+    padding: 0.65rem 0.95rem;
 }
 
 .table-custom td {
-    padding: 0.75rem 1rem;
+    padding: 0.65rem 0.95rem;
     border-bottom: 1px solid var(--border-color);
-    font-size: 0.88rem;
+    font-size: 0.84rem;
 }
 
-/* Chart Canvas container */
-.chart-container-wrapper {
-    position: relative;
-    width: 100%;
-    height: 300px;
+.table-custom tr:last-child td {
+    border-bottom: none;
+}
+
+.telemetry-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
 /* Leaf Classification Badges */
 .badge-wrapper {
-    background-color: rgba(245, 158, 11, 0.15);
-    color: #d97706;
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background-color: rgba(180, 83, 9, 0.1);
+    color: #b45309;
+    border: 1px solid rgba(180, 83, 9, 0.25);
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.72rem;
 }
 
 .badge-binder {
-    background-color: rgba(180, 83, 9, 0.15);
-    color: #b45309;
-    border: 1px solid rgba(180, 83, 9, 0.3);
+    background-color: rgba(120, 53, 15, 0.1);
+    color: #78350f;
+    border: 1px solid rgba(120, 53, 15, 0.25);
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.72rem;
 }
 
 .badge-filler {
-    background-color: rgba(120, 53, 15, 0.15);
-    color: #9a3412;
-    border: 1px solid rgba(120, 53, 15, 0.3);
+    background-color: rgba(69, 26, 3, 0.12);
+    color: #572607;
+    border: 1px solid rgba(69, 26, 3, 0.25);
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.72rem;
 }
 
 [data-bs-theme="dark"] .badge-wrapper {
-    color: #fbbf24;
+    color: #f59e0b;
+    background-color: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.28);
 }
 
 [data-bs-theme="dark"] .badge-binder {
-    color: #f59e0b;
+    color: #d97706;
+    background-color: rgba(217, 119, 6, 0.12);
+    border-color: rgba(217, 119, 6, 0.28);
 }
 
 [data-bs-theme="dark"] .badge-filler {
-    color: #fb923c;
+    color: #ea580c;
+    background-color: rgba(234, 88, 12, 0.12);
+    border-color: rgba(234, 88, 12, 0.28);
 }
 
-/* Navigation Tabs */
-.nav-pills-custom .nav-link {
+/* ==========================================================================
+   Buttons & Controls (Confident, Solid Industrial Buttons)
+   ========================================================================== */
+.btn-emerald {
+    background-color: var(--text-primary) !important;
+    border-color: var(--text-primary) !important;
+    color: var(--bg-surface) !important;
+    font-weight: 500;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    padding: 0.4rem 0.85rem;
+    transition: opacity 0.15s ease;
+}
+
+.btn-emerald:hover {
+    opacity: 0.88;
+    color: var(--bg-surface) !important;
+}
+
+.btn-outline-emerald {
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-color-strong) !important;
+    background-color: var(--bg-surface) !important;
+    font-weight: 500;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    padding: 0.4rem 0.85rem;
+}
+
+.btn-outline-emerald:hover {
+    background-color: var(--bg-surface-soft) !important;
+}
+
+.text-emerald {
+    color: var(--tobacco-primary) !important;
+}
+
+[data-bs-theme="dark"] .text-emerald {
+    color: var(--tobacco-accent) !important;
+}
+
+.border-emerald {
+    border-color: var(--border-color-strong) !important;
+}
+
+/* Form Inputs */
+.form-control, .form-select {
+    border-radius: 6px;
+    border-color: var(--border-color);
+    font-size: 0.85rem;
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--border-color-strong);
+    box-shadow: none;
+}
+
+.input-group-text {
+    border-color: var(--border-color);
+    background-color: var(--bg-surface-soft);
     color: var(--text-secondary);
-    border-radius: 8px;
-    padding: 0.45rem 1rem;
-    font-weight: 600;
-    font-size: 0.88rem;
-    border: 1px solid transparent;
+    font-size: 0.85rem;
 }
 
-.nav-pills-custom .nav-link.active {
-    background-color: var(--primary-emerald);
-    color: #ffffff;
+/* Chart Canvas Container */
+.chart-container-wrapper {
+    position: relative;
+    width: 100%;
+    height: 280px;
 }
 
 /* Footer */
 .footer {
     background-color: var(--bg-surface);
-    border-color: var(--border-color) !important;
+    border-top: 1px solid var(--border-color) !important;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
 }
-
-/* Small screen tweaks */
-@media (max-width: 768px) {
-    .metric-value {
-        font-size: 1.55rem;
-    }
-    .metric-card {
-        padding: 1rem;
-    }
-    .chart-container-wrapper {
-        min-height: 240px;
-    }
-}
-
-/* Emerald Utilities & Buttons */
-.text-emerald {
-    color: var(--primary-emerald) !important;
-}
-.border-emerald {
-    border-color: var(--primary-emerald) !important;
-}
-.btn-emerald {
-    background-color: var(--primary-emerald) !important;
-    border-color: var(--primary-emerald) !important;
-    color: #ffffff !important;
-    font-weight: 600;
-    transition: all 0.2s ease;
-}
-.btn-emerald:hover {
-    background-color: var(--primary-emerald-dark) !important;
-    border-color: var(--primary-emerald-dark) !important;
-    color: #ffffff !important;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.25);
-}
-.btn-outline-emerald {
-    color: var(--primary-emerald) !important;
-    border: 1.5px solid var(--primary-emerald) !important;
-    background-color: rgba(16, 185, 129, 0.08) !important;
-    font-weight: 600;
-    transition: all 0.2s ease;
-}
-.btn-outline-emerald:hover {
-    background-color: var(--primary-emerald) !important;
-    border-color: var(--primary-emerald) !important;
-    color: #ffffff !important;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.25);
-}
-

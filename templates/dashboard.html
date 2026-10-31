@@ -39,7 +39,7 @@
                 </div>
                 <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-opacity-10">
                     <span class="badge rounded-pill px-2 py-1" id="badgeStatusSuhu">Membaca...</span>
-                    <span class="metric-sublabel">Ideal: 20° - 28°C</span>
+                    <span class="metric-sublabel" id="lblIdealSuhu">Ideal: 20° - 25°C</span>
                 </div>
             </div>
         </div>
@@ -61,7 +61,7 @@
                 </div>
                 <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-opacity-10">
                     <span class="badge rounded-pill px-2 py-1" id="badgeStatusKelembapan">Membaca...</span>
-                    <span class="metric-sublabel">Ideal: 60% - 70%</span>
+                    <span class="metric-sublabel" id="lblIdealKelembapan">Ideal: 60% - 70%</span>
                 </div>
             </div>
         </div>
@@ -83,7 +83,7 @@
                 </div>
                 <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-opacity-10">
                     <span class="badge rounded-pill px-2 py-1" id="badgeStatusGas">Membaca...</span>
-                    <span class="metric-sublabel">Batas Aman: &lt; 150</span>
+                    <span class="metric-sublabel" id="lblBatasGas">Batas Aman: &lt; 750</span>
                 </div>
             </div>
         </div>
@@ -249,31 +249,31 @@
     </div>
 
     <!-- Section 4: Uji Coba Klasifikasi Daun (Upload & Live Webcam) -->
-    <div class="dashboard-card mb-4 p-3 border-emerald border-2">
+    <div class="dashboard-card mb-4 p-3">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
             <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-camera text-emerald fs-5"></i>
+                <i class="bi bi-camera text-secondary fs-5"></i>
                 <div>
                     <h6 class="mb-0 fw-bold">Uji Coba Identifikasi Mutu Daun</h6>
                     <small class="text-secondary">Pindai daun tembakau via Upload Gambar atau Live Webcam (Model MobileNetV2)</small>
                 </div>
             </div>
             <div class="d-flex gap-2">
-                <button type="button" class="btn btn-emerald btn-sm px-3 shadow-sm" id="btnToggleWebcam">
+                <button type="button" class="btn btn-emerald btn-sm px-3" id="btnToggleWebcam">
                     <i class="bi bi-camera-video-fill me-1"></i> <span id="btnWebcamText">Buka Live Webcam</span>
                 </button>
             </div>
         </div>
 
         <!-- Wadah Live Webcam Browser (Default tersembunyi) -->
-        <div id="webcamContainer" class="d-none mb-3 p-3 rounded-3 border border-2" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
+        <div id="webcamContainer" class="d-none mb-3 p-3 rounded-2 border" style="background-color: var(--bg-surface-soft);">
             <div class="row align-items-stretch">
                 <!-- Panel Kiri: Video Feed -->
                 <div class="col-md-7 text-center position-relative mb-3 mb-md-0">
                     <div class="position-relative d-inline-block w-100">
-                        <video id="webcamVideo" autoplay playsinline class="rounded-3 shadow" style="width: 100%; max-width: 480px; max-height: 340px; object-fit: cover; background: #000; border: 3px solid #10b981;"></video>
+                        <video id="webcamVideo" autoplay playsinline class="rounded-2" style="width: 100%; max-width: 480px; max-height: 340px; object-fit: cover; background: #000; border: 1px solid var(--border-color-strong);"></video>
                         <!-- Overlay Guide Box -->
-                        <div class="position-absolute top-50 start-50 translate-middle rounded-3" style="width: 300px; height: 300px; pointer-events: none; border: 2px dashed rgba(250, 204, 21, 0.8); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);">
+                        <div class="position-absolute top-50 start-50 translate-middle rounded-2" style="width: 300px; height: 300px; pointer-events: none; border: 2px dashed rgba(217, 119, 6, 0.9); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);">
                             <span class="badge bg-warning text-dark position-absolute top-0 start-50 translate-middle shadow-sm" style="font-size: 0.7rem;">
                                 <i class="bi bi-crosshair me-1"></i>Arahkan Daun ke Sini
                             </span>

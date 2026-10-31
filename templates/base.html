@@ -6,10 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dashboard Monitoring Gudang Tembakau{% endblock %}</title>
 
-    <!-- Google Fonts -->
+    <!-- Google Fonts: Plus Jakarta Sans for UI + JetBrains Mono for Industrial Telemetry -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
 
     <!-- Bootstrap 5 CSS -->
@@ -20,56 +20,27 @@
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 
     <style>
-        /* Cinematic Splash Screen */
+        /* Quiet App Screen Intro */
         #splash-screen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
-            background-color: #0b1120;
-            /* Clean dark background */
+            background-color: var(--bg-page, #121316);
             z-index: 9999;
             display: flex;
             justify-content: center;
             align-items: center;
-            transition: opacity 0.5s ease-out;
+            transition: opacity 0.3s ease-out;
             will-change: opacity;
+            pointer-events: none;
         }
 
         .splash-logo {
-            width: 320px;
-            max-width: 80%;
-            opacity: 0;
-            will-change: transform, opacity;
-            /* Hardware acceleration */
-            -webkit-backface-visibility: hidden;
-            backface-visibility: hidden;
-            -webkit-perspective: 1000;
-            perspective: 1000;
-            animation: logoIntro 2.0s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        @keyframes logoIntro {
-            0% {
-                transform: scale(0.8) translateZ(0);
-                opacity: 0;
-            }
-
-            30% {
-                transform: scale(1.0) translateZ(0);
-                opacity: 1;
-            }
-
-            70% {
-                transform: scale(1.05) translateZ(0);
-                opacity: 1;
-            }
-
-            100% {
-                transform: scale(4.0) translateZ(0);
-                opacity: 0;
-            }
+            width: 180px;
+            max-width: 60%;
+            opacity: 0.9;
         }
     </style>
 
@@ -96,19 +67,19 @@
             </div>
             
             <div class="p-3 flex-grow-1 overflow-y-auto">
-                <ul class="nav nav-pills flex-column gap-2 mb-0">
+                <ul class="nav nav-pills flex-column gap-1 mb-0">
                     <li class="nav-item">
-                        <a class="nav-link text-body {% if request.path == '/' %}active bg-emerald text-white fw-semibold{% endif %}" href="/">
+                        <a class="nav-link nav-link-industrial {% if request.path == '/' %}active fw-semibold{% endif %}" href="/">
                             <i class="bi bi-speedometer2 me-2"></i> Dashboard
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link text-body {% if request.path == '/settings' %}active bg-emerald text-white fw-semibold{% endif %}" href="/settings">
+                        <a class="nav-link nav-link-industrial {% if request.path == '/settings' %}active fw-semibold{% endif %}" href="/settings">
                             <i class="bi bi-gear-fill me-2"></i> Pengaturan
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link text-body {% if request.path == '/export' %}active bg-emerald text-white fw-semibold{% endif %}" href="/export">
+                        <a class="nav-link nav-link-industrial {% if request.path == '/export' %}active fw-semibold{% endif %}" href="/export">
                             <i class="bi bi-file-earmark-spreadsheet me-2"></i> Export Data
                         </a>
                     </li>
@@ -329,26 +300,16 @@
             }, { once: true });
         }
 
-        // Splash Screen Logic
+        // Splash Screen Logic (Fast fade-out)
         window.addEventListener('load', () => {
-            // Check if it's the first time entering (sessionStorage) so it doesn't annoy on every navigation
-            const hasSeenSplash = sessionStorage.getItem('tobacco_splash_seen');
             const splash = document.getElementById('splash-screen');
-
             if (splash) {
-                if (hasSeenSplash) {
-                    // If already seen in this session, remove immediately
-                    splash.style.display = 'none';
-                } else {
-                    // First time: run animation
+                setTimeout(() => {
+                    splash.style.opacity = '0';
                     setTimeout(() => {
-                        splash.style.opacity = '0';
-                        setTimeout(() => {
-                            splash.style.display = 'none';
-                            sessionStorage.setItem('tobacco_splash_seen', 'true');
-                        }, 500); // Matches transition duration
-                    }, 1500); // Background fade starts di detik 1.5 saat logo mulai nge-zoom
-                }
+                        splash.style.display = 'none';
+                    }, 300);
+                }, 150);
             }
         });
     </script>

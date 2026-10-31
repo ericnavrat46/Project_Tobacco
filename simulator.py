@@ -132,8 +132,10 @@ class TobaccoIoTSimulator:
                 elif suhu < self.settings["suhu_max"] - 1.5 and kelembapan < self.settings["kelembapan_max"] - 3.0:
                     self.fan_state = False
                 
-            # Alarm aktif hanya jika kondisi kritis (suhu > 32°C atau gas > 300 ppm)
-            self.alarm_state = (suhu > 32.0 or gas > 300 or kelembapan < 48.0)
+            # Alarm aktif hanya jika kondisi kritis (melebihi ambang batas pengaturan)
+            suhu_danger = self.settings["suhu_max"] + 4.0
+            gas_danger = self.settings["gas_threshold"]
+            self.alarm_state = (suhu > suhu_danger or gas > gas_danger or kelembapan < 45.0)
 
         payload = {
             "suhu": suhu,
@@ -159,7 +161,7 @@ class TobaccoIoTSimulator:
         now_str = datetime.now().strftime('%H:%M:%S')
 
         # 0. Ambil settings terbaru
-        if self.step % 2 == 0:  # ambil tiap 2 siklus (8 detik) agar tidak terlalu sering
+        if self.step % 2 == 0:  # ambil tiap 2 siklus agar selalu up-to-date
             self._get_settings()
 
         # 1. Kirim Data ESP32 (Gudang)
@@ -169,9 +171,13 @@ class TobaccoIoTSimulator:
         fan_badge = c("FAN: ON", "32;1") if gudang_payload["status_fan"] else c("FAN: OFF", "90")
         alarm_badge = c("[ALARM AKTIF!]", "41;97;1") if gudang_payload["status_alarm"] else c("AMAN", "32")
         
-        temp_color = "31" if gudang_payload["suhu"] > 30 else ("33" if gudang_payload["suhu"] > 28 else "32")
-        hum_color = "31" if (gudang_payload["kelembapan"] < 50 or gudang_payload["kelembapan"] > 75) else "36"
-        gas_color = "31" if gudang_payload["gas"] > 250 else ("33" if gudang_payload["gas"] > 150 else "32")
+        s_max = self.settings["suhu_max"]
+        h_max = self.settings["kelembapan_max"]
+        g_thresh = self.settings["gas_threshold"]
+
+        temp_color = "31" if gudang_payload["suhu"] > (s_max + 4.0) else ("33" if gudang_payload["suhu"] > s_max else "32")
+        hum_color = "31" if (gudang_payload["kelembapan"] < 50 or gudang_payload["kelembapan"] > (h_max + 5.0)) else "36"
+        gas_color = "31" if gudang_payload["gas"] > g_thresh else ("33" if gudang_payload["gas"] > (g_thresh * 0.5) else "32")
 
         if status_gudang == 201:
             print(f"[{now_str}] {c('ESP32 Gudang', '35;1')} | "

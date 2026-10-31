@@ -196,10 +196,16 @@ def get_gudang_history():
             records = query.order_by(MonitoringGudang.timestamp.desc(), MonitoringGudang.id.desc()).limit(limit).all()
             records.reverse()
 
+        try:
+            from models.settings import Settings
+            settings = Settings.query.get(1)
+        except Exception:
+            settings = None
+
         return jsonify({
             "success": True,
             "count": len(records),
-            "data": [r.to_dict() for r in records],
+            "data": [r.to_dict(settings=settings) for r in records],
             "message": "Histori data monitoring gudang berhasil diambil"
         }), 200
 
