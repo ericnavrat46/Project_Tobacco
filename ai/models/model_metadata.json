@@ -24,8 +24,8 @@
       "quality": "High Quality"
     }
   },
-  "validation_accuracy": 0.8661,
-  "validation_loss": 0.3191,
-  "dataset_total_samples": 1829,
+  "validation_accuracy": 0.8599,
+  "validation_loss": 0.3344,
+  "dataset_total_samples": 1816,
   "training_epochs": 8
 }

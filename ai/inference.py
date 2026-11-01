@@ -68,30 +68,38 @@ CLASS_COLORS = {
 }
 
 
+DEFAULT_ALEXNET_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_alexnet.h5')
 DEFAULT_SVM_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_svm.pkl')
 
 def load_ai_model(model_path=DEFAULT_MODEL_PATH):
     """
-    Memuat model AI (Keras .h5 atau Scikit-Learn SVM .pkl).
-    Secara cerdas mendeteksi format model yang tersedia.
+    Memuat model AI (Keras .h5 MobileNetV2 / AlexNet, atau Scikit-Learn SVM .pkl).
+    Secara cerdas mendeteksi format model yang diminta.
     """
+    # Shortcut keyword
+    if str(model_path).lower() in ['alexnet', 'alex']:
+        model_path = DEFAULT_ALEXNET_PATH
+    elif str(model_path).lower() in ['mobilenet', 'mobilenetv2']:
+        model_path = DEFAULT_MODEL_PATH
+
     # 1. Cek apakah path eksplisit meminta SVM atau berkas .pkl
-    if model_path.endswith('.pkl') and os.path.exists(model_path):
+    if str(model_path).endswith('.pkl') and os.path.exists(model_path):
         import joblib
         print(f"[INFO] Memuat model Machine Learning SVM dari: {model_path} ...")
         svm_model = joblib.load(model_path)
         print("[SUCCESS] Model SVM berhasil dimuat (Akurasi: 76.3%).")
         return {'type': 'svm', 'model': svm_model}
 
-    # 2. Coba muat model Keras Deep Learning (.h5)
+    # 2. Coba muat model Keras Deep Learning (.h5 MobileNetV2 atau AlexNet)
     if os.path.exists(model_path):
         try:
             import tensorflow as tf
             os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-            print(f"[INFO] Memuat model Deep Learning MobileNetV2 dari: {model_path} ...")
+            arch_name = "AlexNet" if "alexnet" in str(model_path).lower() else "MobileNetV2"
+            print(f"[INFO] Memuat model Deep Learning {arch_name} dari: {model_path} ...")
             keras_model = tf.keras.models.load_model(model_path)
-            print("[SUCCESS] Model MobileNetV2 berhasil dimuat.")
-            return {'type': 'keras', 'model': keras_model}
+            print(f"[SUCCESS] Model {arch_name} berhasil dimuat.")
+            return {'type': 'keras', 'model': keras_model, 'arch': arch_name}
         except ImportError:
             print("[WARN] TensorFlow belum siap. Mencoba fallback ke model SVM...")
         except Exception as e:

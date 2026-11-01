@@ -1,0 +1,65 @@
+{
+  "model_architecture": "AlexNet",
+  "input_shape": [
+    224,
+    224,
+    3
+  ],
+  "classes": [
+    "filler",
+    "binder",
+    "wrapper"
+  ],
+  "class_mapping": {
+    "0": {
+      "code": "filler",
+      "quality": "Low Quality"
+    },
+    "1": {
+      "code": "binder",
+      "quality": "Medium Quality"
+    },
+    "2": {
+      "code": "wrapper",
+      "quality": "High Quality"
+    }
+  },
+  "total_parameters": 11356931,
+  "validation_accuracy": 0.8209,
+  "validation_loss": 0.3982,
+  "training_duration_seconds": 325.36,
+  "classification_report": {
+    "filler": {
+      "precision": 0.9824561403508771,
+      "recall": 1.0,
+      "f1-score": 0.9911504424778761,
+      "support": 56.0
+    },
+    "binder": {
+      "precision": 0.808695652173913,
+      "recall": 0.8985507246376812,
+      "f1-score": 0.851258581235698,
+      "support": 207.0
+    },
+    "wrapper": {
+      "precision": 0.7368421052631579,
+      "recall": 0.56,
+      "f1-score": 0.6363636363636364,
+      "support": 100.0
+    },
+    "accuracy": 0.8209366391184573,
+    "macro avg": {
+      "precision": 0.8426646325959827,
+      "recall": 0.8195169082125604,
+      "f1-score": 0.8262575533590701,
+      "support": 363.0
+    },
+    "weighted avg": {
+      "precision": 0.8157073123580301,
+      "recall": 0.8209366391184573,
+      "f1-score": 0.813639985484612,
+      "support": 363.0
+    }
+  },
+  "epochs_trained": 10
+}

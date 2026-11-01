@@ -3,3 +3,10 @@ __pycache__/
 .venv/
 venv/
 .env
+
+# Model dengan ukuran > 100MB (Batas Maksimal GitHub)
+ai/models/tobacco_alexnet.h5
+
+# File temporary Microsoft Office
+~$*.docx
+~$*.xlsx

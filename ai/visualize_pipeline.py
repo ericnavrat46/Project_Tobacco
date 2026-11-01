@@ -24,7 +24,7 @@ from PIL import Image, ImageEnhance
 
 # Konfigurasi Path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATASET_ROOT = os.path.join(BASE_DIR, 'dataset', 'dataset')
+DATASET_ROOT = os.path.join(BASE_DIR, 'dataset')
 REPORTS_DIR = os.path.join(BASE_DIR, 'reports')
 STATIC_REPORTS_DIR = os.path.join(BASE_DIR, '..', 'static', 'reports')
 SVM_MODEL_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_svm.pkl')
@@ -54,34 +54,41 @@ CLASS_COLORS_HEX = {
 
 
 def find_sample_images():
-    """Mencari sampel gambar untuk setiap kelas mutu dari dataset validasi/train."""
+    """Mencari sampel gambar untuk setiap kelas mutu dari dataset train/valid."""
     samples = {}
-    splits = ['valid', 'train']
+    splits = ['train', 'valid']
+    import pandas as pd
     
     for split in splits:
         split_dir = os.path.join(DATASET_ROOT, split)
-        json_path = os.path.join(split_dir, '_annotations.createml.json')
-        if not os.path.exists(json_path):
+        csv_path = os.path.join(split_dir, '_classes.csv')
+        if not os.path.exists(csv_path):
             continue
             
-        with open(json_path, 'r') as f:
-            annotations = json.load(f)
+        df = pd.read_csv(csv_path)
+        for _, row in df.iterrows():
+            active = [c.strip() for c in df.columns[1:] if row[c] == 1]
+            act_str = ' '.join(active).lower()
             
-        for item in annotations:
-            if not item.get('annotations'):
-                continue
-            ann = item['annotations'][0]
-            label = ann.get('label')
-            img_name = item.get('image')
-            img_path = os.path.join(split_dir, img_name)
-            
-            if os.path.exists(img_path) and label in LABEL_MAP and label not in samples:
-                samples[label] = {
-                    'path': img_path,
-                    'coords': ann.get('coordinates', {}),
-                    'label': label,
-                    'class_name': CLASS_NAMES[LABEL_MAP[label]]
-                }
+            label_key = None
+            if 'filler' in act_str or 'low' in act_str:
+                label_key = "Low Quality"
+            elif 'binder' in act_str or 'medium' in act_str:
+                label_key = "Medium Quality"
+            elif 'wrapper' in act_str or 'high' in act_str:
+                label_key = "High Quality"
+                
+            if label_key and label_key not in samples:
+                img_path = os.path.join(split_dir, row['filename'])
+                if os.path.exists(img_path):
+                    with Image.open(img_path) as im:
+                        w, h = im.size
+                    samples[label_key] = {
+                        'path': img_path,
+                        'coords': {'x': w // 2, 'y': h // 2, 'width': int(w * 0.9), 'height': int(h * 0.9)},
+                        'label': label_key,
+                        'class_name': CLASS_NAMES[LABEL_MAP[label_key]]
+                    }
             if len(samples) == 3:
                 break
         if len(samples) == 3:
