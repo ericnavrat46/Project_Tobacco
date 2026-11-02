@@ -43,7 +43,8 @@ except ImportError:
 
 # Konfigurasi Default
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_MODEL_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_model.h5')
+DEFAULT_KERAS_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_model.keras')
+DEFAULT_MODEL_PATH = DEFAULT_KERAS_PATH if os.path.exists(DEFAULT_KERAS_PATH) else os.path.join(BASE_DIR, 'models', 'tobacco_model.h5')
 DEFAULT_API_URL = 'http://127.0.0.1:5000/api/conveyor'
 IMG_SIZE = (224, 224)
 

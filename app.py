@@ -21,6 +21,18 @@ def create_app(config_class=Config):
     # Inisialisasi Database
     db.init_app(app)
 
+    # Middleware untuk membersihkan spasi / baris baru accidental di URL
+    class StripPathMiddleware:
+        def __init__(self, wsgi_app):
+            self.wsgi_app = wsgi_app
+        def __call__(self, environ, start_response):
+            path = environ.get('PATH_INFO', '')
+            if path:
+                environ['PATH_INFO'] = path.rstrip(' \r\n\t')
+            return self.wsgi_app(environ, start_response)
+
+    app.wsgi_app = StripPathMiddleware(app.wsgi_app)
+
     # Register Blueprints
     app.register_blueprint(views_bp)
     app.register_blueprint(api_gudang_bp)

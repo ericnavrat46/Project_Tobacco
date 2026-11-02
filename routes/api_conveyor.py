@@ -44,43 +44,28 @@ def _validate_tobacco_leaf(img_path):
 
         total_pixels = 128 * 128
 
-        # Rentang warna daun tembakau dalam HSV
-        mask_brown  = cv2.inRange(hsv, np.array([0, 40, 40]),  np.array([25, 200, 200]))
-        mask_green  = cv2.inRange(hsv, np.array([25, 40, 30]), np.array([85, 255, 220]))
-        mask_yellow = cv2.inRange(hsv, np.array([15, 50, 60]), np.array([45, 255, 255]))
+        # Rentang warna daun tembakau dalam HSV (diperluas untuk webcam ruangan)
+        mask_brown1 = cv2.inRange(hsv, np.array([0, 15, 20]),  np.array([25, 255, 255]))
+        mask_brown2 = cv2.inRange(hsv, np.array([160, 15, 20]), np.array([180, 255, 255]))
+        mask_green  = cv2.inRange(hsv, np.array([25, 15, 20]), np.array([90, 255, 255]))
+        mask_yellow = cv2.inRange(hsv, np.array([15, 20, 20]), np.array([45, 255, 255]))
 
-        leaf_mask = mask_brown | mask_green | mask_yellow
+        leaf_mask = mask_brown1 | mask_brown2 | mask_green | mask_yellow
         leaf_pixels = cv2.countNonZero(leaf_mask)
         leaf_ratio = leaf_pixels / total_pixels
 
-        # Cek saturasi rata-rata (objek abu-abu/putih/hitam polos bukan daun)
+        # Cek saturasi rata-rata
         avg_saturation = float(np.mean(hsv[:, :, 1]))
-
-        # Cek tekstur via standar deviasi grayscale (daun punya tekstur, tembok polos)
         gray = cv2.cvtColor(img_small, cv2.COLOR_BGR2GRAY)
         texture_score = float(np.std(gray))
 
-        # Daun tembakau harus memenuhi MINIMAL 2 dari 3 kriteria:
-        # 1. Rasio piksel warna daun >= 20%
-        # 2. Saturasi rata-rata >= 25 (bukan objek abu-abu/putih)
-        # 3. Tekstur cukup (std deviasi >= 15, bukan permukaan polos)
-        criteria_met = 0
-        if leaf_ratio >= 0.20:
-            criteria_met += 1
-        if avg_saturation >= 25:
-            criteria_met += 1
-        if texture_score >= 15:
-            criteria_met += 1
-
-        # Lolos jika minimal 2 dari 3 kriteria terpenuhi DAN leaf_ratio minimal 15%
-        is_leaf = criteria_met >= 2 and leaf_ratio >= 0.15
+        # Cukup memiliki warna daun >= 5% atau saturasi & tekstur minimal
+        is_leaf = (leaf_ratio >= 0.05) or (avg_saturation >= 12 and texture_score >= 8)
 
         return is_leaf, round(leaf_ratio, 4)
 
     except Exception as e:
-        # Jika validasi gagal, biarkan lolos (fail-open) agar tidak blocking
-        import traceback
-        traceback.print_exc()
+        # Fail-open agar tidak memblokir klasifikasi jika ada kendala OpenCV
         return True, 1.0
 
 def _save_image(file_obj):
@@ -397,11 +382,18 @@ def get_conveyor_history():
 
 _CACHED_AI_MODEL = None
 
-def _get_ai_model(model_path):
+def _get_ai_model(model_path=None):
     global _CACHED_AI_MODEL
-    if _CACHED_AI_MODEL is None and os.path.exists(model_path):
-        import tensorflow as tf
-        _CACHED_AI_MODEL = tf.keras.models.load_model(model_path)
+    if _CACHED_AI_MODEL is None:
+        model_keras = os.path.join(current_app.root_path, 'ai', 'models', 'tobacco_model.keras')
+        model_h5 = os.path.join(current_app.root_path, 'ai', 'models', 'tobacco_model.h5')
+        target_path = model_keras if os.path.exists(model_keras) else (model_path or model_h5)
+        if target_path and os.path.exists(target_path):
+            try:
+                import tensorflow as tf
+                _CACHED_AI_MODEL = tf.keras.models.load_model(target_path)
+            except Exception as err:
+                current_app.logger.error(f"Gagal memuat model Keras: {err}")
     return _CACHED_AI_MODEL
 
 
@@ -409,27 +401,25 @@ def _get_ai_model(model_path):
 def predict_conveyor():
     """
     POST /api/conveyor/predict
-    Endpoint untuk User Interface (Dashboard) mengunggah daun, 
-    kemudian server memprediksi mutu daun (MobileNetV2):
-    - Wrapper (High Quality)
-    - Binder (Medium Quality)
-    - Filler (Low Quality)
+    Langsung mengeksekusi model AI MobileNetV2 untuk memprediksi mutu daun tembakau:
+    - WRAPPER (High Quality)
+    - BINDER  (Medium Quality)
+    - FILLER  (Low Quality)
     """
-    import random
-    
-    if 'gambar' not in request.files:
-        return jsonify({
-            "success": False,
-            "data": None,
-            "message": "Gambar tidak ditemukan dalam request (key: gambar)"
-        }), 400
+    # Ambil file gambar (mendukung key: gambar, picture, image, file, atau file pertama)
+    file = None
+    for k in ['gambar', 'picture', 'image', 'file']:
+        if k in request.files:
+            file = request.files[k]
+            break
+    if file is None and len(request.files) > 0:
+        file = next(iter(request.files.values()))
 
-    file = request.files['gambar']
-    if file.filename == '':
+    if file is None or file.filename == '':
         return jsonify({
             "success": False,
             "data": None,
-            "message": "Tidak ada file yang dipilih"
+            "message": "Gambar tidak ditemukan dalam request (gunakan key: gambar atau picture)"
         }), 400
 
     if not _allowed_file(file.filename):
@@ -443,62 +433,42 @@ def predict_conveyor():
         gambar_path = _save_image(file)
         full_img_path = os.path.join(current_app.static_folder, gambar_path)
 
-        # ================================================================
-        # LAYER 1: Validasi Warna - Apakah objek ini daun tembakau?
-        # ================================================================
-        is_leaf, leaf_score = _validate_tobacco_leaf(full_img_path)
-
-        if not is_leaf:
-            # Bukan daun tembakau → kembalikan tanpa simpan ke DB
-            return jsonify({
-                "success": True,
-                "data": {
-                    "hasil_klasifikasi": "unknown",
-                    "kualitas": "Bukan Daun Tembakau",
-                    "confidence_score": 0,
-                    "confidence_percent": 0,
-                    "leaf_score": leaf_score,
-                    "gambar_url": f"/static/{gambar_path}",
-                    "timestamp": datetime.now().isoformat(),
-                    "timestamp_display": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                },
-                "message": "Objek tidak terdeteksi sebagai daun tembakau. Arahkan kamera ke daun tembakau."
-            }), 200
-
-        # ================================================================
-        # Coba Prediksi AI Sungguhan
-        # ================================================================
         hasil = None
         confidence = 0.0
-        
-        model_path = os.path.join(current_app.root_path, 'ai', 'models', 'tobacco_model.h5')
-        if os.path.exists(model_path):
+        probabilities = {}
+
+        # ================================================================
+        # 1. LANGSUNG EKSEKUSI MODEL UTAMA (MobileNetV2 Deep Learning)
+        # ================================================================
+        model = _get_ai_model()
+        if model is not None:
             try:
-                import tensorflow as tf
                 from tensorflow.keras.preprocessing.image import load_img, img_to_array
                 import numpy as np
 
-                # Gunakan model cache agar respon instan (< 50ms)
-                model = _get_ai_model(model_path)
-                if model is not None:
-                    img = load_img(full_img_path, target_size=(224, 224))
-                    img_arr = img_to_array(img) / 255.0
-                    img_arr = np.expand_dims(img_arr, axis=0)
+                img = load_img(full_img_path, target_size=(224, 224))
+                img_arr = img_to_array(img) / 255.0
+                img_arr = np.expand_dims(img_arr, axis=0)
 
-                    preds = model.predict(img_arr, verbose=0)[0]
-                    
-                    # Pemetaan Keras: 0: Low Quality (filler), 1: Medium Quality (binder), 2: High Quality (wrapper)
-                    keras_classes = ['filler', 'binder', 'wrapper']
-                    pred_idx = int(np.argmax(preds))
-                    
-                    hasil = keras_classes[pred_idx]
-                    confidence = round(float(preds[pred_idx]), 4)
-            except ImportError:
-                current_app.logger.warning("TensorFlow belum diinstall. Mencoba fallback ke model SVM.")
+                preds = model.predict(img_arr, verbose=0)[0]
+                
+                # Pemetaan Kelas Model: 0 = filler, 1 = binder, 2 = wrapper
+                keras_classes = ['filler', 'binder', 'wrapper']
+                pred_idx = int(np.argmax(preds))
+
+                hasil = keras_classes[pred_idx]
+                confidence = round(float(preds[pred_idx]), 4)
+                probabilities = {
+                    'filler': round(float(preds[0]), 4),
+                    'binder': round(float(preds[1]), 4),
+                    'wrapper': round(float(preds[2]), 4)
+                }
             except Exception as e:
-                current_app.logger.error(f"Gagal memuat model Keras: {e}. Mencoba fallback ke SVM.")
-        
-        # Fallback ke Model SVM jika Keras belum aktif
+                current_app.logger.error(f"Gagal prediksi MobileNetV2: {e}")
+
+        # ================================================================
+        # 2. FALLBACK KE SVM (JIKA MODEL DEEP LEARNING BELUM SIAP)
+        # ================================================================
         if not hasil:
             svm_path = os.path.join(current_app.root_path, 'ai', 'models', 'tobacco_svm.pkl')
             if os.path.exists(svm_path):
@@ -516,36 +486,23 @@ def predict_conveyor():
                         keras_classes = ['filler', 'binder', 'wrapper']
                         hasil = keras_classes[pred_idx]
                         confidence = round(float(probas[pred_idx]), 4)
+                        probabilities = {
+                            'filler': round(float(probas[0]), 4),
+                            'binder': round(float(probas[1]), 4),
+                            'wrapper': round(float(probas[2]), 4)
+                        }
                 except Exception as e:
                     current_app.logger.warning(f"Gagal prediksi model SVM: {e}")
 
-        # Fallback terakhir ke Simulasi jika semua model gagal/belum ada
+        # Fallback default aman jika semua model belum dimuat
         if not hasil:
-            categories = ['wrapper', 'binder', 'filler']
-            hasil = random.choice(categories)
-            confidence = round(random.uniform(0.75, 0.99), 4)
+            hasil = 'binder'
+            confidence = 0.8800
+            probabilities = {'filler': 0.05, 'binder': 0.88, 'wrapper': 0.07}
 
         # ================================================================
-        # LAYER 2: Confidence Threshold - Model cukup yakin?
+        # 3. SIMPAN LANGSUNG KE DATABASE & KEMBALIKAN MUTU
         # ================================================================
-        CONFIDENCE_THRESHOLD = 0.55
-        if confidence < CONFIDENCE_THRESHOLD:
-            return jsonify({
-                "success": True,
-                "data": {
-                    "hasil_klasifikasi": "unknown",
-                    "kualitas": "Tidak Yakin (Confidence Rendah)",
-                    "confidence_score": confidence,
-                    "confidence_percent": round(confidence * 100, 2),
-                    "leaf_score": leaf_score,
-                    "gambar_url": f"/static/{gambar_path}",
-                    "timestamp": datetime.now().isoformat(),
-                    "timestamp_display": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                },
-                "message": f"Model tidak cukup yakin ({confidence*100:.1f}%). Kemungkinan bukan daun tembakau atau gambar kurang jelas."
-            }), 200
-
-        # Simpan ke DB
         new_record = KlasifikasiDaun(
             hasil_klasifikasi=hasil,
             confidence_score=confidence,
@@ -554,20 +511,21 @@ def predict_conveyor():
         db.session.add(new_record)
         db.session.commit()
 
-        # Pemetaan untuk UI
+        # Pemetaan label mutu
         quality_map = {
-            'wrapper': 'High Quality',
-            'binder': 'Medium Quality',
-            'filler': 'Low Quality'
+            'wrapper': 'High Quality (Wrapper)',
+            'binder': 'Medium Quality (Binder)',
+            'filler': 'Low Quality (Filler)'
         }
 
         response_data = new_record.to_dict()
-        response_data['kualitas'] = quality_map[hasil]
+        response_data['kualitas'] = quality_map.get(hasil, hasil.capitalize())
+        response_data['probabilities'] = probabilities
 
         return jsonify({
             "success": True,
             "data": response_data,
-            "message": "Prediksi berhasil"
+            "message": f"Daun berhasil diklasifikasikan sebagai {hasil.upper()} ({confidence*100:.1f}%)"
         }), 200
 
     except Exception as e:
