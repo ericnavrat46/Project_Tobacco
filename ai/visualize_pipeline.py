@@ -47,9 +47,9 @@ LABEL_MAP = {
 CLASS_NAMES = ["filler", "binder", "wrapper"]
 QUALITY_NAMES = ["Low Quality (Filler)", "Medium Quality (Binder)", "High Quality (Wrapper)"]
 CLASS_COLORS_HEX = {
-    "filler": "#e74c3c",    # Merah Coral
-    "binder": "#f39c12",    # Kuning Oranye
-    "wrapper": "#27ae60"    # Hijau Zamrud
+    "filler": "#8B5A2B",   # Cokelat sedang
+    "binder": "#A0522D",   # Cokelat kemerahan
+    "wrapper": "#4B2E1E"   # Cokelat tua
 }
 
 
