@@ -56,7 +56,7 @@
     <div class="d-flex w-100 min-vh-100">
         <!-- Sidebar -->
         <aside class="sidebar bg-surface border-end d-flex flex-column sticky-top" style="width: 260px; height: 100vh; z-index: 1040;" id="sidebarMain">
-            <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
+            <div class="sidebar-header px-3 border-bottom d-flex align-items-center justify-content-between">
                 <a class="text-decoration-none d-flex align-items-center gap-2" href="/">
                     <img src="{{ url_for('static', filename='images/logoweb.png') }}" alt="Logo" style="height: 40px; width: auto; object-fit: contain;">
                     <span class="fw-bold fs-6 brand-title text-body">Tobacco Guard</span>
@@ -100,7 +100,7 @@
         <!-- Main Content Wrapper -->
         <div class="content-wrapper flex-grow-1 d-flex flex-column" style="min-width: 0;">
             <!-- Topbar (Mobile Toggle & Controls) -->
-            <header class="topbar border-bottom bg-surface py-2 px-3 d-flex justify-content-between align-items-center sticky-top" style="z-index: 1030;">
+            <header class="topbar border-bottom bg-surface px-3 d-flex justify-content-between align-items-center sticky-top" style="z-index: 1030;">
                 <div class="d-flex align-items-center gap-2">
                     <button class="btn border-0 d-lg-none" id="btnOpenSidebar">
                         <i class="bi bi-list fs-4"></i>
@@ -161,7 +161,7 @@
                     </div>
                     <div class="d-flex align-items-center gap-3">
                         <span>API Status: <span class="badge bg-success-subtle text-success">Aktif</span></span>
-                        <span>SQLite DB: <code class="text-secondary">tobacco_monitoring.db</code></span>
+                        <span>Database: <code class="text-secondary">MySQL (tobacco_monitoring)</code></span>
                     </div>
                 </div>
             </footer>
@@ -336,6 +336,13 @@
     </script>
     
     <style>
+        /* Sidebar header & Topbar height alignment */
+        .sidebar-header,
+        .topbar {
+            height: 64px;
+            box-sizing: border-box;
+        }
+
         /* Sidebar transition */
         .sidebar {
             transition: margin-left 0.3s ease, left 0.3s ease;

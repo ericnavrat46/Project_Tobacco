@@ -112,6 +112,12 @@ body {
 }
 
 /* Topbar & Header */
+.sidebar-header,
+.topbar {
+    height: 64px;
+    box-sizing: border-box;
+}
+
 .topbar {
     background-color: var(--bg-surface);
     border-bottom: 1px solid var(--border-color) !important;
