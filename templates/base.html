@@ -6,10 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dashboard Monitoring Gudang Tembakau{% endblock %}</title>
 
-    <!-- Google Fonts -->
+    <!-- Google Fonts: Plus Jakarta Sans for UI + JetBrains Mono for Industrial Telemetry -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
 
     <!-- Bootstrap 5 CSS -->
@@ -20,60 +20,32 @@
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 
     <style>
-        /* Cinematic Splash Screen */
+        /* Quiet App Screen Intro */
         #splash-screen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
-            background-color: #0b1120;
-            /* Clean dark background */
+            background-color: var(--bg-page, #121316);
             z-index: 9999;
             display: flex;
             justify-content: center;
             align-items: center;
-            transition: opacity 0.5s ease-out;
+            transition: opacity 0.3s ease-out;
             will-change: opacity;
+            pointer-events: none;
         }
 
         .splash-logo {
-            width: 320px;
-            max-width: 80%;
-            opacity: 0;
-            will-change: transform, opacity;
-            /* Hardware acceleration */
-            -webkit-backface-visibility: hidden;
-            backface-visibility: hidden;
-            -webkit-perspective: 1000;
-            perspective: 1000;
-            animation: logoIntro 2.0s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        @keyframes logoIntro {
-            0% {
-                transform: scale(0.8) translateZ(0);
-                opacity: 0;
-            }
-
-            30% {
-                transform: scale(1.0) translateZ(0);
-                opacity: 1;
-            }
-
-            70% {
-                transform: scale(1.05) translateZ(0);
-                opacity: 1;
-            }
-
-            100% {
-                transform: scale(4.0) translateZ(0);
-                opacity: 0;
-            }
+            width: 180px;
+            max-width: 60%;
+            opacity: 0.9;
         }
     </style>
 
     {% block head %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot.css') }}">
 </head>
 
 <body>
@@ -85,7 +57,7 @@
     <div class="d-flex w-100 min-vh-100">
         <!-- Sidebar -->
         <aside class="sidebar bg-surface border-end d-flex flex-column sticky-top" style="width: 260px; height: 100vh; z-index: 1040;" id="sidebarMain">
-            <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
+            <div class="sidebar-header px-3 border-bottom d-flex align-items-center justify-content-between">
                 <a class="text-decoration-none d-flex align-items-center gap-2" href="/">
                     <img src="{{ url_for('static', filename='images/logoweb.png') }}" alt="Logo" style="height: 40px; width: auto; object-fit: contain;">
                     <span class="fw-bold fs-6 brand-title text-body">Tobacco Guard</span>
@@ -96,19 +68,19 @@
             </div>
             
             <div class="p-3 flex-grow-1 overflow-y-auto">
-                <ul class="nav nav-pills flex-column gap-2 mb-0">
+                <ul class="nav nav-pills flex-column gap-1 mb-0">
                     <li class="nav-item">
-                        <a class="nav-link text-body {% if request.path == '/' %}active bg-emerald text-white fw-semibold{% endif %}" href="/">
+                        <a class="nav-link nav-link-industrial {% if request.path == '/' %}active fw-semibold{% endif %}" href="/">
                             <i class="bi bi-speedometer2 me-2"></i> Dashboard
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link text-body {% if request.path == '/settings' %}active bg-emerald text-white fw-semibold{% endif %}" href="/settings">
+                        <a class="nav-link nav-link-industrial {% if request.path == '/settings' %}active fw-semibold{% endif %}" href="/settings">
                             <i class="bi bi-gear-fill me-2"></i> Pengaturan
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link text-body {% if request.path == '/export' %}active bg-emerald text-white fw-semibold{% endif %}" href="/export">
+                        <a class="nav-link nav-link-industrial {% if request.path == '/export' %}active fw-semibold{% endif %}" href="/export">
                             <i class="bi bi-file-earmark-spreadsheet me-2"></i> Export Data
                         </a>
                     </li>
@@ -129,7 +101,7 @@
         <!-- Main Content Wrapper -->
         <div class="content-wrapper flex-grow-1 d-flex flex-column" style="min-width: 0;">
             <!-- Topbar (Mobile Toggle & Controls) -->
-            <header class="topbar border-bottom bg-surface py-2 px-3 d-flex justify-content-between align-items-center sticky-top" style="z-index: 1030;">
+            <header class="topbar border-bottom bg-surface px-3 d-flex justify-content-between align-items-center sticky-top" style="z-index: 1030;">
                 <div class="d-flex align-items-center gap-2">
                     <button class="btn border-0 d-lg-none" id="btnOpenSidebar">
                         <i class="bi bi-list fs-4"></i>
@@ -190,7 +162,7 @@
                     </div>
                     <div class="d-flex align-items-center gap-3">
                         <span>API Status: <span class="badge bg-success-subtle text-success">Aktif</span></span>
-                        <span>SQLite DB: <code class="text-secondary">tobacco_monitoring.db</code></span>
+                        <span>Database: <code class="text-secondary">MySQL (tobacco_monitoring)</code></span>
                     </div>
                 </div>
             </footer>
@@ -329,26 +301,16 @@
             }, { once: true });
         }
 
-        // Splash Screen Logic
+        // Splash Screen Logic (Fast fade-out)
         window.addEventListener('load', () => {
-            // Check if it's the first time entering (sessionStorage) so it doesn't annoy on every navigation
-            const hasSeenSplash = sessionStorage.getItem('tobacco_splash_seen');
             const splash = document.getElementById('splash-screen');
-
             if (splash) {
-                if (hasSeenSplash) {
-                    // If already seen in this session, remove immediately
-                    splash.style.display = 'none';
-                } else {
-                    // First time: run animation
+                setTimeout(() => {
+                    splash.style.opacity = '0';
                     setTimeout(() => {
-                        splash.style.opacity = '0';
-                        setTimeout(() => {
-                            splash.style.display = 'none';
-                            sessionStorage.setItem('tobacco_splash_seen', 'true');
-                        }, 500); // Matches transition duration
-                    }, 1500); // Background fade starts di detik 1.5 saat logo mulai nge-zoom
-                }
+                        splash.style.display = 'none';
+                    }, 300);
+                }, 150);
             }
         });
     </script>
@@ -375,6 +337,13 @@
     </script>
     
     <style>
+        /* Sidebar header & Topbar height alignment */
+        .sidebar-header,
+        .topbar {
+            height: 64px;
+            box-sizing: border-box;
+        }
+
         /* Sidebar transition */
         .sidebar {
             transition: margin-left 0.3s ease, left 0.3s ease;
@@ -400,6 +369,58 @@
             }
         }
     </style>
+
+    
+    <!-- Floating Chatbot Widget -->
+    <button class="chatbot-toggler" id="chatbotToggler" title="Tanya AI TobaccoGuard">
+        <i class="bi bi-chat-dots-fill"></i>
+        <i class="bi bi-x-lg"></i>
+    </button>
+
+    <div class="chatbot-popup" id="chatbotPopup">
+        <div class="chatbot-header">
+            <div class="bot-info">
+                <div class="bot-avatar">
+                    <i class="bi bi-robot"></i>
+                </div>
+                <div>
+                    <div class="bot-title">TobaccoGuard AI</div>
+                    <div class="bot-subtitle"><span class="status-dot"></span> Gemini Powered ΓÇó Online</div>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <button class="btn-close-chat" id="chatbotClear" title="Hapus Riwayat Chat"><i class="bi bi-trash3"></i></button>
+                <button class="btn-close-chat" id="chatbotClose" title="Tutup Chat"><i class="bi bi-dash-lg"></i></button>
+            </div>
+        </div>
+
+        <div class="chatbot-messages" id="chatbotMessages">
+            <div class="chat-bubble bot">
+                Halo! ≡ƒæï Saya asisten AI <strong>TobaccoGuard</strong>. Ada yang bisa saya bantu terkait monitoring mutu tembakau atau kondisi lingkungan gudang hari ini?
+                <span class="chat-time">Sekarang</span>
+            </div>
+            <div class="typing-indicator" id="chatbotTyping">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+            </div>
+        </div>
+
+        <div class="chatbot-suggestions">
+            <button type="button" class="suggestion-chip" data-prompt="Bagaimana kondisi suhu dan kelembaban gudang saat ini?">≡ƒîí∩╕Å Kondisi Gudang</button>
+            <button type="button" class="suggestion-chip" data-prompt="Apa saja kriteria mutu Grade A pada tembakau?">≡ƒî┐ Syarat Grade A</button>
+            <button type="button" class="suggestion-chip" data-prompt="Berapa ambang batas suhu dan kelembaban ideal tembakau?">≡ƒôè Ambang Batas Ideal</button>
+        </div>
+
+        <div class="chatbot-footer">
+            <form id="chatbotForm">
+                <input type="text" id="chatbotInput" placeholder="Tanyakan seputar tembakau & gudang..." autocomplete="off" required>
+                <button type="submit" title="Kirim"><i class="bi bi-send-fill"></i></button>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/chatbot.js') }}"></script>
 
     {% block scripts %}{% endblock %}
 </body>
