@@ -45,6 +45,7 @@
     </style>
 
     {% block head %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot.css') }}">
 </head>
 
 <body>
@@ -368,6 +369,58 @@
             }
         }
     </style>
+
+    
+    <!-- Floating Chatbot Widget -->
+    <button class="chatbot-toggler" id="chatbotToggler" title="Tanya AI TobaccoGuard">
+        <i class="bi bi-chat-dots-fill"></i>
+        <i class="bi bi-x-lg"></i>
+    </button>
+
+    <div class="chatbot-popup" id="chatbotPopup">
+        <div class="chatbot-header">
+            <div class="bot-info">
+                <div class="bot-avatar">
+                    <i class="bi bi-robot"></i>
+                </div>
+                <div>
+                    <div class="bot-title">TobaccoGuard AI</div>
+                    <div class="bot-subtitle"><span class="status-dot"></span> Gemini Powered • Online</div>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <button class="btn-close-chat" id="chatbotClear" title="Hapus Riwayat Chat"><i class="bi bi-trash3"></i></button>
+                <button class="btn-close-chat" id="chatbotClose" title="Tutup Chat"><i class="bi bi-dash-lg"></i></button>
+            </div>
+        </div>
+
+        <div class="chatbot-messages" id="chatbotMessages">
+            <div class="chat-bubble bot">
+                Halo! 👋 Saya asisten AI <strong>TobaccoGuard</strong>. Ada yang bisa saya bantu terkait monitoring mutu tembakau atau kondisi lingkungan gudang hari ini?
+                <span class="chat-time">Sekarang</span>
+            </div>
+            <div class="typing-indicator" id="chatbotTyping">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+            </div>
+        </div>
+
+        <div class="chatbot-suggestions">
+            <button type="button" class="suggestion-chip" data-prompt="Bagaimana kondisi suhu dan kelembaban gudang saat ini?">🌡️ Kondisi Gudang</button>
+            <button type="button" class="suggestion-chip" data-prompt="Apa saja kriteria mutu Grade A pada tembakau?">🌿 Syarat Grade A</button>
+            <button type="button" class="suggestion-chip" data-prompt="Berapa ambang batas suhu dan kelembaban ideal tembakau?">📊 Ambang Batas Ideal</button>
+        </div>
+
+        <div class="chatbot-footer">
+            <form id="chatbotForm">
+                <input type="text" id="chatbotInput" placeholder="Tanyakan seputar tembakau & gudang..." autocomplete="off" required>
+                <button type="submit" title="Kirim"><i class="bi bi-send-fill"></i></button>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/chatbot.js') }}"></script>
 
     {% block scripts %}{% endblock %}
 </body>

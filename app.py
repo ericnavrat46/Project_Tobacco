@@ -9,6 +9,7 @@ from routes.api_gudang import api_gudang_bp
 from routes.api_conveyor import api_conveyor_bp
 from routes.api_export import api_export_bp
 from routes.api_settings import api_settings_bp
+from routes.api_chatbot import api_chatbot_bp
 from models.settings import Settings
 
 def create_app(config_class=Config):
@@ -39,6 +40,7 @@ def create_app(config_class=Config):
     app.register_blueprint(api_conveyor_bp)
     app.register_blueprint(api_export_bp)
     app.register_blueprint(api_settings_bp)
+    app.register_blueprint(api_chatbot_bp)
 
     # Health check endpoint
     @app.route('/api/health', methods=['GET'])
