@@ -1,32 +1,90 @@
 """
 ===================================================================================
-TobaccoGuard AI - Real-time Webcam Inference & Leaf Quality Grading
+TobaccoGuard AI - Inference Script Klasifikasi Mutu Daun Tembakau
 ===================================================================================
-Script inferensi visual mutu daun tembakau berbasis Computer Vision & Deep Learning:
-1. Membaca stream live webcam (USB webcam / kamera laptop).
-2. Menampilkan antarmuka OpenCV dengan Guide Box (area peletakan daun tembakau).
-3. Preprocessing citra: Center-crop bujur sangkar, resize ke 224x224, normalisasi piksel.
-4. Klasifikasi menggunakan model Transfer Learning MobileNetV2 (3 kelas mutu):
-   - Wrapper (High Quality - mutu tertinggi pembungkus cerutu)
-   - Binder  (Medium Quality - mutu sedang pengikat cerutu)
-   - Filler  (Low Quality - mutu rendah/rajangan pengisi cerutu)
-5. Mengirim hasil inferensi dan bukti foto secara otomatis ke Flask REST API:
-   POST /api/conveyor
 
-Petunjuk Penggunaan:
-  python inference.py                     # Buka webcam default (kamera 0)
-  python inference.py --camera 1          # Gunakan webcam eksternal (kamera 1)
-  python inference.py --image path.jpg    # Uji coba satu file gambar
-  python inference.py --auto 3            # Auto-scan setiap 3 detik
+TODO: Script ini akan diisi setelah model hasil training tersedia di ai/models/
 
-Tombol Kontrol (di jendela webcam):
-  [SPASI] : Pindai & Klasifikasi Daun (Kirim ke Server)
-  [A]     : Nyalakan/Matikan Auto-Scan Otomatis
-  [C]     : Bersihkan Status Hasil Sebelumnya
-  [Q/ESC] : Keluar dari Aplikasi
+Fungsi Inference yang Direncanakan:
+1. Load model .h5 atau .tflite dari folder ai/models/
+2. Terima input berupa gambar path atau frame dari kamera
+3. Preprocessing gambar (resize ke 224x224, normalisasi pixel 0-1)
+4. Prediksi kelas daun tembakau: 'wrapper', 'binder', atau 'filler'
+5. Kembalikan hasil klasifikasi beserta confidence score (0.0 - 1.0)
+6. (Opsional) Kirim hasil ke endpoint POST /api/conveyor secara otomatis
+
+Integrasi dengan Backend Flask:
+    POST /api/conveyor
+    Content-Type: application/json
+    {
+        "hasil_klasifikasi": "wrapper",   // salah satu: wrapper, binder, filler
+        "confidence_score": 0.9543        // nilai 0.0 - 1.0
+    }
+
+Cara Menjalankan (setelah model tersedia):
+    cd ai/
+    python inference.py --image path/ke/gambar_daun.jpg
+    python inference.py --camera 0   # Gunakan webcam / kamera ESP32-CAM stream
+
 ===================================================================================
 """
 
+<<<<<<< Updated upstream
+# TODO: Import library
+# import os
+# import sys
+# import argparse
+# import numpy as np
+# import json
+# import urllib.request
+# from PIL import Image
+# import tensorflow as tf
+
+# TODO: Konfigurasi
+# MODEL_PATH = 'models/tobacco_classifier_v1.h5'
+# TFLITE_PATH = 'models/tobacco_classifier_v1.tflite'
+# IMG_SIZE = (224, 224)
+# CLASS_NAMES = ['binder', 'filler', 'wrapper']  # Urutan alfabetis (sesuai Keras ImageDataGenerator)
+# API_ENDPOINT = 'http://127.0.0.1:5000/api/conveyor'
+
+# TODO: Load Model
+# def load_model(model_path=MODEL_PATH):
+#     ...
+
+# TODO: Preprocessing Gambar
+# def preprocess_image(image_path):
+#     ...
+
+# TODO: Prediksi / Klasifikasi Daun
+# def classify_leaf(image_path, model):
+#     ...
+#     # Return: {"hasil_klasifikasi": "wrapper", "confidence_score": 0.9543}
+
+# TODO: Kirim Hasil ke Backend Flask (POST /api/conveyor)
+# def send_to_api(hasil, confidence, endpoint=API_ENDPOINT):
+#     ...
+
+# TODO: Main Entry Point
+# def main():
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument('--image', type=str, help='Path ke gambar daun tembakau')
+#     args = parser.parse_args()
+#     ...
+
+# if __name__ == '__main__':
+#     main()
+
+print("=" * 60)
+print("  TobaccoGuard AI - Inference Script (Placeholder)")
+print("=" * 60)
+print("Model belum tersedia.")
+print("Jalankan ai/train.py terlebih dahulu setelah dataset tersedia,")
+print("lalu uncomment kode inference di atas.")
+print()
+print("Format output ke /api/conveyor:")
+print('  {"hasil_klasifikasi": "wrapper|binder|filler",')
+print('   "confidence_score": 0.0000 - 1.0000}')
+=======
 import os
 import sys
 import time
@@ -89,6 +147,11 @@ def load_ai_model(model_path=DEFAULT_MODEL_PATH):
         print(f"[INFO] Memuat model Machine Learning SVM dari: {model_path} ...")
         svm_model = joblib.load(model_path)
         print("[SUCCESS] Model SVM berhasil dimuat (Akurasi: 76.3%).")
+        # Warm-up dummy prediction
+        try:
+            _ = svm_model.predict([np.zeros(36, dtype=np.float32)])
+        except Exception:
+            pass
         return {'type': 'svm', 'model': svm_model}
 
     # 2. Coba muat model Keras Deep Learning (.h5 MobileNetV2 atau AlexNet)
@@ -100,6 +163,12 @@ def load_ai_model(model_path=DEFAULT_MODEL_PATH):
             print(f"[INFO] Memuat model Deep Learning {arch_name} dari: {model_path} ...")
             keras_model = tf.keras.models.load_model(model_path)
             print(f"[SUCCESS] Model {arch_name} berhasil dimuat.")
+            # Warm-up computational graph agar deteksi pertama instan
+            dummy = np.zeros((1, 224, 224, 3), dtype=np.float32)
+            try:
+                _ = keras_model(dummy, training=False).numpy()
+            except Exception:
+                _ = keras_model.predict(dummy, verbose=0)
             return {'type': 'keras', 'model': keras_model, 'arch': arch_name}
         except ImportError:
             print("[WARN] TensorFlow belum siap. Mencoba fallback ke model SVM...")
@@ -112,6 +181,10 @@ def load_ai_model(model_path=DEFAULT_MODEL_PATH):
         print(f"[INFO] Menggunakan model SVM fallback: {DEFAULT_SVM_PATH} ...")
         svm_model = joblib.load(DEFAULT_SVM_PATH)
         print("[SUCCESS] Model SVM aktif dan siap digunakan.")
+        try:
+            _ = svm_model.predict([np.zeros(36, dtype=np.float32)])
+        except Exception:
+            pass
         return {'type': 'svm', 'model': svm_model}
 
     print("[ERROR] Tidak ada model yang ditemukan (.h5 maupun .pkl).")
@@ -439,3 +512,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+>>>>>>> Stashed changes

@@ -14,71 +14,11 @@ ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp'}
 def _allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-
-def _validate_tobacco_leaf(img_path):
-    """
-    Validasi apakah gambar kemungkinan berisi daun tembakau
-    berdasarkan analisis distribusi warna HSV.
-
-    Daun tembakau memiliki warna khas:
-    - Coklat/kering  : Hue 0-25, Sat 40-200, Val 40-200
-    - Hijau segar    : Hue 25-85, Sat 40-255, Val 30-220
-    - Kuning/curing  : Hue 15-45, Sat 50-255, Val 60-255
-
-    Objek non-daun (tangan, tembok, HP, baju, dll) biasanya memiliki
-    distribusi warna yang sangat berbeda dari rentang di atas.
-
-    Return: (is_leaf: bool, leaf_score: float 0.0-1.0)
-    """
-    try:
-        import cv2
-        import numpy as np
-
-        img = cv2.imread(img_path)
-        if img is None:
-            return False, 0.0
-
-        # Resize kecil untuk efisiensi (validasi tidak perlu resolusi tinggi)
-        img_small = cv2.resize(img, (128, 128))
-        hsv = cv2.cvtColor(img_small, cv2.COLOR_BGR2HSV)
-
-        total_pixels = 128 * 128
-
-        # Rentang warna daun tembakau dalam HSV (diperluas untuk webcam ruangan)
-        mask_brown1 = cv2.inRange(hsv, np.array([0, 15, 20]),  np.array([25, 255, 255]))
-        mask_brown2 = cv2.inRange(hsv, np.array([160, 15, 20]), np.array([180, 255, 255]))
-        mask_green  = cv2.inRange(hsv, np.array([25, 15, 20]), np.array([90, 255, 255]))
-        mask_yellow = cv2.inRange(hsv, np.array([15, 20, 20]), np.array([45, 255, 255]))
-
-        leaf_mask = mask_brown1 | mask_brown2 | mask_green | mask_yellow
-        leaf_pixels = cv2.countNonZero(leaf_mask)
-        leaf_ratio = leaf_pixels / total_pixels
-
-        # Cek saturasi rata-rata
-        avg_saturation = float(np.mean(hsv[:, :, 1]))
-        gray = cv2.cvtColor(img_small, cv2.COLOR_BGR2GRAY)
-        texture_score = float(np.std(gray))
-
-        # Cukup memiliki warna daun >= 5% atau saturasi & tekstur minimal
-        is_leaf = (leaf_ratio >= 0.05) or (avg_saturation >= 12 and texture_score >= 8)
-
-        return is_leaf, round(leaf_ratio, 4)
-
-    except Exception as e:
-        # Fail-open agar tidak memblokir klasifikasi jika ada kendala OpenCV
-        return True, 1.0
-
 def _save_image(file_obj):
     """
     Simpan file gambar ke filesystem.
     Return: path relatif terhadap static/ (untuk disimpan di DB)
-    Contoh: "uploads/daun/2026/10/02/leaf_a3f2c1.jpg"
-
-    MENGAPA TIDAK SIMPAN KE DATABASE?
-    - 1 gambar JPEG dari kamera: ~200 KB - 1 MB
-    - 1000 klasifikasi per hari x 200 KB = 200 MB/hari di DB
-    - File system jauh lebih efisien untuk binary besar
-    - Query SQL akan sangat lambat jika ada BLOB besar di setiap row
+    Contoh: "uploads/daun/2026/11/05/leaf_a3f2c1.jpg"
     """
     today = datetime.now()
     date_folder = today.strftime('%Y/%m/%d')
@@ -96,26 +36,9 @@ def _save_image(file_obj):
 def receive_conveyor_data():
     """
     POST /api/conveyor
-    Terima data klasifikasi daun. Mendukung 2 format:
-
-    Format 1 - JSON biasa (dari Wemos / simulator, tanpa gambar):
-        Content-Type: application/json
-        { "hasil_klasifikasi": "wrapper", "confidence_score": 0.94 }
-
-    Format 2 - Multipart form (dari inference.py AI dengan gambar):
-        Content-Type: multipart/form-data
-        Fields: hasil_klasifikasi, confidence_score, fitur_vektor (opsional)
-        File  : gambar (opsional, jpg/png/webp)
-
-    ARSITEKTUR GAMBAR & VEKTOR:
-        - Gambar TIDAK disimpan di DB (mencegah DB membengkak)
-        - Gambar disimpan ke filesystem: static/uploads/daun/YYYY/MM/DD/
-        - DB hanya menyimpan PATH: "uploads/daun/2026/10/02/leaf_abc123.jpg"
-        - Fitur Vektor (embedding CNN) disimpan langsung di DB dalam format JSON
-        - Kolom gambar_path dan fitur_vektor bersifat NULL jika tidak ada (backward compatible)
+    Terima data klasifikasi daun. Mendukung JSON & multipart form.
     """
     try:
-        # Deteksi format request: JSON atau multipart
         if request.content_type and 'multipart/form-data' in request.content_type:
             data = request.form
             file = request.files.get('gambar')
@@ -130,7 +53,6 @@ def receive_conveyor_data():
                 "message": "Request body harus berupa JSON atau multipart/form-data yang valid"
             }), 400
 
-        # Validasi field wajib
         required_fields = ['hasil_klasifikasi', 'confidence_score']
         missing_fields = [f for f in required_fields if f not in data]
         if missing_fields:
@@ -148,7 +70,6 @@ def receive_conveyor_data():
                 "message": f"Kategori tidak valid: '{data['hasil_klasifikasi']}'. Kategori yang diperbolehkan: {', '.join(KlasifikasiDaun.VALID_CATEGORIES)}"
             }), 400
 
-        # Validasi confidence score
         try:
             confidence = float(data['confidence_score'])
         except (ValueError, TypeError):
@@ -158,7 +79,6 @@ def receive_conveyor_data():
                 "message": "Confidence score harus berupa angka float/desimal (misal 0.95 atau 95.0)"
             }), 400
 
-        # Normalisasi ke skala 0.0 - 1.0 jika dikirim dalam persen (misal 95.0)
         if confidence > 1.0 and confidence <= 100.0:
             confidence = confidence / 100.0
         elif confidence < 0.0 or confidence > 100.0:
@@ -168,7 +88,6 @@ def receive_conveyor_data():
                 "message": f"Confidence score tidak valid ({confidence}). Harus di rentang 0.0 - 1.0 atau 0 - 100%"
             }), 400
 
-        # Simpan gambar ke filesystem (jika ada)
         gambar_path = None
         if file and file.filename:
             if not _allowed_file(file.filename):
@@ -180,10 +99,8 @@ def receive_conveyor_data():
             try:
                 gambar_path = _save_image(file)
             except Exception as img_err:
-                # Gambar gagal disimpan, tapi data tetap diterima (graceful degradation)
                 current_app.logger.warning(f"Gambar gagal disimpan: {img_err}")
 
-        # Ambil fitur vektor (opsional)
         fitur_vektor = data.get('fitur_vektor')
         if fitur_vektor and isinstance(fitur_vektor, str):
             import json
@@ -195,11 +112,10 @@ def receive_conveyor_data():
         new_record = KlasifikasiDaun(
             hasil_klasifikasi=hasil_raw,
             confidence_score=confidence,
-            gambar_path=gambar_path     # NULL jika tidak ada gambar
+            gambar_path=gambar_path
         )
         if fitur_vektor:
             new_record.vektor = fitur_vektor
-
 
         if 'timestamp' in data and data['timestamp']:
             try:
@@ -229,7 +145,6 @@ def receive_conveyor_data():
 def get_latest_conveyor():
     """
     GET /api/conveyor/latest
-    Ambil data terbaru hasil klasifikasi daun conveyor
     """
     try:
         latest = KlasifikasiDaun.query.order_by(KlasifikasiDaun.timestamp.desc(), KlasifikasiDaun.id.desc()).first()
@@ -257,14 +172,6 @@ def get_latest_conveyor():
 def get_conveyor_stats():
     """
     GET /api/conveyor/stats
-    Ambil statistik klasifikasi daun:
-    - total diproses
-    - total per kategori (wrapper, binder, filler)
-    - persentase per kategori
-    - rata-rata confidence score
-    Optional query params:
-      - start_date: YYYY-MM-DD
-      - end_date: YYYY-MM-DD
     """
     try:
         start_date_str = request.args.get('start_date')
@@ -327,11 +234,6 @@ def get_conveyor_stats():
 def get_conveyor_history():
     """
     GET /api/conveyor/history
-    Query params:
-      - limit: int (default 50)
-      - start_date: YYYY-MM-DD
-      - end_date: YYYY-MM-DD
-      - kategori: wrapper/binder/filler
     """
     try:
         limit = request.args.get('limit', default=50, type=int)
@@ -397,16 +299,84 @@ def _get_ai_model(model_path=None):
     return _CACHED_AI_MODEL
 
 
+def _get_svm_model(base_path=None):
+    global _CACHED_SVM_MODEL
+    if _CACHED_SVM_MODEL is None:
+        root = base_path or (current_app.root_path if current_app else os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        svm_path = os.path.join(root, 'ai', 'models', 'tobacco_svm.pkl')
+        if os.path.exists(svm_path):
+            try:
+                import joblib
+                _CACHED_SVM_MODEL = joblib.load(svm_path)
+            except Exception as err:
+                if current_app:
+                    current_app.logger.error(f"Gagal memuat model SVM: {err}")
+    return _CACHED_SVM_MODEL
+
+
+def warmup_model(app=None):
+    """
+    Melakukan pre-load dan warm-up (inferensi dummy) saat server start.
+    Menghilangkan latensi cold-start sehingga deteksi daun pertama langsung instan.
+    """
+    global _IS_WARMED_UP
+    if _IS_WARMED_UP:
+        return
+
+    root = app.root_path if app else None
+    print("[AI WARMUP] Menyiapkan model klasifikasi daun tembakau...")
+    start_t = datetime.now()
+
+    # 1. Coba muat & warm-up model Deep Learning MobileNetV2
+    model = _get_ai_model(base_path=root)
+    if model is not None:
+        try:
+            import numpy as np
+            dummy_input = np.zeros((1, 224, 224, 3), dtype=np.float32)
+            try:
+                _ = model(dummy_input, training=False).numpy()
+            except Exception:
+                _ = model.predict(dummy_input, verbose=0)
+            duration = (datetime.now() - start_t).total_seconds()
+            print(f"[AI WARMUP] Model MobileNetV2 siap dan panas dalam {duration:.2f} detik.")
+            _IS_WARMED_UP = True
+            return
+        except Exception as e:
+            print(f"[AI WARMUP] MobileNetV2 warm-up dilewati: {e}")
+
+    # 2. Coba muat & warm-up model SVM fallback
+    svm = _get_svm_model(base_path=root)
+    if svm is not None:
+        try:
+            import numpy as np
+            from ai.train_svm import extract_feature_vector
+            dummy_img = np.zeros((128, 128, 3), dtype=np.uint8)
+            feat = extract_feature_vector(dummy_img)
+            _ = svm.predict([feat])
+            _ = svm.predict_proba([feat])
+            duration = (datetime.now() - start_t).total_seconds()
+            print(f"[AI WARMUP] Model SVM siap dan panas dalam {duration:.2f} detik.")
+            _IS_WARMED_UP = True
+            return
+        except Exception as e:
+            print(f"[AI WARMUP] SVM warm-up dilewati: {e}")
+
+    _IS_WARMED_UP = True
+    print("[AI WARMUP] Inisialisasi model selesai.")
+
+
 @api_conveyor_bp.route('/predict', methods=['POST'])
 def predict_conveyor():
     """
     POST /api/conveyor/predict
-    Langsung mengeksekusi model AI MobileNetV2 untuk memprediksi mutu daun tembakau:
-    - WRAPPER (High Quality)
-    - BINDER  (Medium Quality)
-    - FILLER  (Low Quality)
+    Endpoint untuk User Interface (Dashboard) mengunggah daun, 
+    kemudian server 'memprediksi' (simulasi untuk saat ini) kualitas daun:
+    - Wrapper (High Quality)
+    - Binder (Medium Quality)
+    - Filler (Low Quality)
     """
-    # Ambil file gambar (mendukung key: gambar, picture, image, file, atau file pertama)
+    import random
+    
     file = None
     for k in ['gambar', 'picture', 'image', 'file']:
         if k in request.files:
@@ -430,8 +400,45 @@ def predict_conveyor():
         }), 400
 
     try:
-        gambar_path = _save_image(file)
-        full_img_path = os.path.join(current_app.static_folder, gambar_path)
+
+        # 1. Baca data byte gambar ke RAM terlebih dahulu (In-Memory Processing)
+        img_bytes = file.read()
+        if not img_bytes:
+            return jsonify({
+                "success": False,
+                "data": None,
+                "message": "File gambar kosong atau rusak"
+            }), 400
+
+        # 2. Simpan gambar ke filesystem secara aman
+        gambar_path = None
+        try:
+            today = datetime.now()
+            year = str(today.year)
+            month = f"{today.month:02d}"
+            day = f"{today.day:02d}"
+
+            upload_dir = os.path.normpath(os.path.join(current_app.static_folder, 'uploads', 'daun', year, month, day))
+            os.makedirs(upload_dir, exist_ok=True)
+
+            ext = 'jpg'
+            if file.filename and '.' in file.filename:
+                ext = file.filename.rsplit('.', 1)[1].lower()
+
+            filename = f"leaf_{uuid.uuid4().hex[:8]}.{ext}"
+            file_dest = os.path.join(upload_dir, filename)
+            with open(file_dest, 'wb') as f_out:
+                f_out.write(img_bytes)
+            gambar_path = f"uploads/daun/{year}/{month}/{day}/{filename}"
+            print(f"[CONVEYOR CAMERA] Gambar daun berhasil disimpan: {gambar_path}")
+        except Exception as save_err:
+            current_app.logger.warning(f"Gagal simpan arsip gambar ke disk: {save_err}")
+
+        # 3. Decode gambar langsung dari memori RAM (tanpa tunggu baca ulang disk)
+        import cv2
+        import numpy as np
+        np_arr = np.frombuffer(img_bytes, np.uint8)
+        img_cv = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
         hasil = None
         confidence = 0.0
@@ -443,16 +450,19 @@ def predict_conveyor():
         model = _get_ai_model()
         if model is not None:
             try:
-                from tensorflow.keras.preprocessing.image import load_img, img_to_array
-                import numpy as np
+                # Preprocessing langsung dari memori: BGR -> RGB, resize 224x224, normalisasi 0-1
+                img_rgb = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
+                img_resized = cv2.resize(img_rgb, (224, 224), interpolation=cv2.INTER_AREA)
+                img_arr = np.expand_dims(img_resized.astype(np.float32) / 255.0, axis=0)
 
-                img = load_img(full_img_path, target_size=(224, 224))
-                img_arr = img_to_array(img) / 255.0
-                img_arr = np.expand_dims(img_arr, axis=0)
-
-                preds = model.predict(img_arr, verbose=0)[0]
+                # Eksekusi langsung tanpa batch predict overhead (jauh lebih instan)
+                try:
+                    preds = model(img_arr, training=False).numpy()[0]
+                except Exception:
+                    preds = model.predict(img_arr, verbose=0)[0]
                 
-                # Pemetaan Kelas Model: 0 = filler, 1 = binder, 2 = wrapper
+                # Pemetaan Keras (berdasarkan urutan abjad/folder atau yang di set di train.py)
+                # 0: Low Quality (filler), 1: Medium Quality (binder), 2: High Quality (wrapper)
                 keras_classes = ['filler', 'binder', 'wrapper']
                 pred_idx = int(np.argmax(preds))
 
@@ -470,27 +480,21 @@ def predict_conveyor():
         # 2. FALLBACK KE SVM (JIKA MODEL DEEP LEARNING BELUM SIAP)
         # ================================================================
         if not hasil:
-            svm_path = os.path.join(current_app.root_path, 'ai', 'models', 'tobacco_svm.pkl')
-            if os.path.exists(svm_path):
+            svm_model = _get_svm_model()
+            if svm_model is not None and img_cv is not None:
                 try:
-                    import joblib
-                    import cv2
                     from ai.train_svm import extract_feature_vector
-                    
-                    svm_model = joblib.load(svm_path)
-                    img_cv = cv2.imread(full_img_path)
-                    if img_cv is not None:
-                        feat = extract_feature_vector(img_cv)
-                        pred_idx = int(svm_model.predict([feat])[0])
-                        probas = svm_model.predict_proba([feat])[0]
-                        keras_classes = ['filler', 'binder', 'wrapper']
-                        hasil = keras_classes[pred_idx]
-                        confidence = round(float(probas[pred_idx]), 4)
-                        probabilities = {
-                            'filler': round(float(probas[0]), 4),
-                            'binder': round(float(probas[1]), 4),
-                            'wrapper': round(float(probas[2]), 4)
-                        }
+                    feat = extract_feature_vector(img_cv)
+                    pred_idx = int(svm_model.predict([feat])[0])
+                    probas = svm_model.predict_proba([feat])[0]
+                    keras_classes = ['filler', 'binder', 'wrapper']
+                    hasil = keras_classes[pred_idx]
+                    confidence = round(float(probas[pred_idx]), 4)
+                    probabilities = {
+                        'filler': round(float(probas[0]), 4),
+                        'binder': round(float(probas[1]), 4),
+                        'wrapper': round(float(probas[2]), 4)
+                    }
                 except Exception as e:
                     current_app.logger.warning(f"Gagal prediksi model SVM: {e}")
 
@@ -503,22 +507,36 @@ def predict_conveyor():
         # ================================================================
         # 3. SIMPAN LANGSUNG KE DATABASE & KEMBALIKAN MUTU
         # ================================================================
-        new_record = KlasifikasiDaun(
-            hasil_klasifikasi=hasil,
-            confidence_score=confidence,
-            gambar_path=gambar_path
-        )
-        db.session.add(new_record)
-        db.session.commit()
-
-        # Pemetaan label mutu
         quality_map = {
-            'wrapper': 'High Quality (Wrapper)',
-            'binder': 'Medium Quality (Binder)',
-            'filler': 'Low Quality (Filler)'
+            'wrapper': 'High Quality',
+            'binder': 'Medium Quality',
+            'filler': 'Low Quality'
         }
 
-        response_data = new_record.to_dict()
+        response_data = None
+        try:
+            new_record = KlasifikasiDaun(
+                hasil_klasifikasi=hasil,
+                confidence_score=confidence,
+                gambar_path=gambar_path
+            )
+            db.session.add(new_record)
+            db.session.commit()
+            response_data = new_record.to_dict()
+        except Exception as db_err:
+            db.session.rollback()
+            current_app.logger.warning(f"Gagal simpan ke database ({db_err}). Mengirim hasil prediksi langsung ke browser.")
+            response_data = {
+                'id': 0,
+                'hasil_klasifikasi': hasil,
+                'confidence_score': confidence,
+                'confidence_percent': round(confidence * 100, 2),
+                'gambar_url': f"/static/{gambar_path}" if gambar_path else None,
+                'has_vector': False,
+                'timestamp_display': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'db_status': 'MySQL tidak terhubung'
+            }
+
         response_data['kualitas'] = quality_map.get(hasil, hasil.capitalize())
         response_data['probabilities'] = probabilities
 
@@ -536,4 +554,3 @@ def predict_conveyor():
             "data": None,
             "message": f"Gagal melakukan prediksi: {str(e)}"
         }), 500
-
