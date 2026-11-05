@@ -119,7 +119,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     toggler.addEventListener('click', () => toggleChat());
-        if (clearBtn) {
+
+    if (clearBtn) {
         clearBtn.addEventListener('click', function() {
             if (confirm('Hapus seluruh riwayat percakapan?')) {
                 localStorage.removeItem(STORAGE_KEY);
@@ -132,74 +133,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => toggleChat(false));
-    }
 
-    // Horizontal scroll support with mouse wheel on suggestion chips
-    if (suggestionsContainer) {
-        suggestionsContainer.addEventListener('wheel', function (e) {
-            if (e.deltaY !== 0) {
-                e.preventDefault();
-                suggestionsContainer.scrollLeft += e.deltaY;
-            }
-        });
-
-        // Mouse drag scrolling support
-        let isDown = false;
-        let startX, scrollLeft;
-        suggestionsContainer.addEventListener('mousedown', (e) => {
-            isDown = true;
-            startX = e.pageX - suggestionsContainer.offsetLeft;
-            scrollLeft = suggestionsContainer.scrollLeft;
-        });
-        suggestionsContainer.addEventListener('mouseleave', () => { isDown = false; });
-        suggestionsContainer.addEventListener('mouseup', () => { isDown = false; });
-        suggestionsContainer.addEventListener('mousemove', (e) => {
-            if (!isDown) return;
-            e.preventDefault();
-            const x = e.pageX - suggestionsContainer.offsetLeft;
-            const walk = (x - startX) * 1.5;
-            suggestionsContainer.scrollLeft = scrollLeft - walk;
-        });
-    }
-
-    // Load riwayat chat dari localStorage saat pertama kali buka
-    function loadSavedHistory() {
-        try {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    chatHistory = parsed;
-                    parsed.forEach(item => {
-                        appendMessage(item.role === 'model' ? 'bot' : 'user', item.text, item.time, false);
-                    });
-                }
-            }
-        } catch (e) {
-            console.error('Failed to load chat history', e);
-        }
-    }
-
-    loadSavedHistory();
-
-    // Toggle Chat Popup (Buka / Tutup)
-    function toggleChat(forceState) {
-        if (typeof forceState === 'boolean') {
-            document.body.classList.toggle('chatbot-open', forceState);
-        } else {
-            document.body.classList.toggle('chatbot-open');
-        }
-        if (document.body.classList.contains('chatbot-open')) {
-            setTimeout(() => {
-                input.focus();
-                scrollToBottom();
-            }, 200);
-        }
-    }
-
-    toggler.addEventListener('click', () => toggleChat());
     if (closeBtn) {
         closeBtn.addEventListener('click', () => toggleChat(false));
     }
