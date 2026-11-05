@@ -5,13 +5,15 @@
 {% block content %}
 <div class="container-fluid px-lg-4 py-3">
     <!-- Top Header & Last Update Banner -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-4">
+    <div
+        class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-4">
         <div>
             <div class="d-flex align-items-center gap-2">
                 <h1 class="h3 fw-bold mb-0">Dashboard Monitoring Gudang Tembakau</h1>
             </div>
             <p class="text-secondary small mb-0 mt-1">
-                Telemetri lingkungan ESP32 (Suhu, Kelembapan, Gas, Fan, Alarm) &amp; Klasifikasi Mutu Daun Wemos Conveyor
+                Telemetri lingkungan ESP32 (Suhu, Kelembapan, Gas, Fan, Alarm) &amp; Klasifikasi Mutu Daun Wemos
+                Conveyor
             </p>
         </div>
         <div class="d-flex align-items-center gap-2 text-secondary small bg-surface-soft p-2 rounded-3 border">
@@ -96,7 +98,8 @@
                         <div class="metric-sublabel text-uppercase fw-bold mb-1">Aktuator &amp; Keamanan</div>
                         <div class="d-flex align-items-center gap-2 mt-1">
                             <span class="fw-bold fs-6">Kipas:</span>
-                            <span class="badge bg-secondary rounded-pill px-2 py-1" id="badgeModeFan" style="font-size: 0.65rem;">AUTO</span>
+                            <span class="badge bg-secondary rounded-pill px-2 py-1" id="badgeModeFan"
+                                style="font-size: 0.65rem;">AUTO</span>
                             <span class="badge rounded-pill px-2 py-1" id="badgeStatusFan">OFF</span>
                         </div>
                     </div>
@@ -142,7 +145,8 @@
                 <button class="btn btn-emerald btn-sm flex-fill" id="btnApplyFilter" type="button">
                     <i class="bi bi-search me-1"></i> Terapkan
                 </button>
-                <button class="btn btn-outline-secondary btn-sm" id="btnResetFilter" type="button" title="Reset ke 24 Jam Terakhir">
+                <button class="btn btn-outline-secondary btn-sm" id="btnResetFilter" type="button"
+                    title="Reset ke 24 Jam Terakhir">
                     <i class="bi bi-arrow-counterclockwise"></i>
                 </button>
             </div>
@@ -166,7 +170,8 @@
                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle d-none d-sm-inline">
                             <i class="bi bi-circle-fill me-1" style="font-size: 8px;"></i> Suhu (°C)
                         </span>
-                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle d-none d-sm-inline">
+                        <span
+                            class="badge bg-primary-subtle text-primary border border-primary-subtle d-none d-sm-inline">
                             <i class="bi bi-circle-fill me-1" style="font-size: 8px;"></i> Kelembapan (%)
                         </span>
                     </div>
@@ -238,7 +243,8 @@
                         </div>
 
                         <!-- Latest Detected Leaf Pill -->
-                        <div class="alert alert-light border d-flex justify-content-between align-items-center p-2 mt-2 mb-0 rounded-3">
+                        <div
+                            class="alert alert-light border d-flex justify-content-between align-items-center p-2 mt-2 mb-0 rounded-3">
                             <small class="text-secondary"><i class="bi bi-clock me-1"></i> Terakhir Diuji:</small>
                             <div id="statLatestLeaf" class="fw-semibold text-primary">-</div>
                         </div>
@@ -248,6 +254,7 @@
         </div>
     </div>
 
+<<<<<<< Updated upstream
     <!-- Section 4: Uji Coba Klasifikasi Daun (Upload) -->
     <div class="dashboard-card mb-4 p-3 border-emerald border-2">
         <div class="d-flex align-items-center gap-2 mb-3">
@@ -257,28 +264,144 @@
                 <small class="text-secondary">Upload foto daun untuk menguji model AI (Simulasi: High/Medium/Low)</small>
             </div>
         </div>
+=======
+    <!-- Section 4: Uji Coba Klasifikasi Daun (Upload & Live Webcam) -->
+    <div class="dashboard-card mb-4 p-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-camera text-secondary fs-5"></i>
+                <div>
+                    <h6 class="mb-0 fw-bold">Uji Coba Identifikasi Mutu Daun</h6>
+                    <small class="text-secondary">Pindai daun tembakau via Upload Gambar atau Live Webcam (Model
+                        MobileNetV2)</small>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-emerald btn-sm px-3" id="btnToggleWebcam">
+                    <i class="bi bi-camera-video-fill me-1"></i> <span id="btnWebcamText">Buka Live Webcam</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Wadah Live Webcam Browser (Default tersembunyi) -->
+        <div id="webcamContainer" class="d-none mb-3 p-3 rounded-2 border"
+            style="background-color: var(--bg-surface-soft);">
+            <div class="d-flex gap-3 align-items-stretch">
+
+                <!-- Kamera: landscape penuh -->
+                <div class="position-relative flex-grow-1" style="min-width: 0;">
+                    <div class="position-relative w-100" style="overflow: hidden; border-radius: 0.5rem;">
+                        <video id="webcamVideo" autoplay playsinline muted class="rounded-2 d-block w-100"
+                            style="height: 400px; object-fit: cover; background: #000; border: 1px solid var(--border-color-strong); transform: scaleX(-1);">
+                        </video>
+                        <!-- Guide Box landscape -->
+                        <div class="position-absolute top-50 start-50 translate-middle rounded-2"
+                            style="width: 94%; height: 86%; pointer-events: none; border: 2px dashed rgba(217,119,6,0.95); box-shadow: 0 0 0 9999px rgba(0,0,0,0.38);">
+                        </div>
+                        <!-- Auto-scan indicator pojok kiri atas -->
+                        <div class="position-absolute top-0 start-0 m-2">
+                            <span id="autoScanIndicator" class="badge bg-danger rounded-pill shadow-sm"
+                                style="font-size: 0.65rem;">
+                                <i class="bi bi-record-circle me-1"></i>AUTO-SCAN AKTIF
+                            </span>
+                        </div>
+                    </div>
+                    <canvas id="webcamCanvas" class="d-none"></canvas>
+                </div>
+
+                <!-- Panel hasil live (compact, di samping kamera) -->
+                <div style="width: 190px; flex-shrink: 0;" class="d-flex flex-column gap-2">
+                    <small class="text-secondary fw-semibold" style="font-size: 0.72rem;">
+                        <i class="bi bi-broadcast text-success me-1"></i>Hasil Live
+                    </small>
+
+                    <!-- Live Result Card -->
+                    <div id="liveResultCard" class="rounded-3 p-2 flex-grow-1 shadow-sm"
+                        style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); transition: all 0.4s ease;">
+                        <div class="text-center h-100 d-flex flex-column justify-content-center"
+                            id="liveResultPlaceholder">
+                            <div class="spinner-grow spinner-grow-sm text-success mb-1" role="status"></div>
+                            <p class="mb-0" style="color: #94a3b8; font-size: 0.7rem;">Menunggu deteksi...</p>
+                        </div>
+                        <div class="d-none text-center" id="liveResultContent">
+                            <div class="mb-1">
+                                <span id="liveResultBadge" class="badge rounded-pill px-3 py-1 shadow"
+                                    style="font-size: 0.75rem;">-</span>
+                            </div>
+                            <div class="mb-2">
+                                <span id="liveResultQuality" class="fw-bold text-white"
+                                    style="font-size: 0.8rem;">-</span>
+                            </div>
+                            <div class="mb-1">
+                                <div class="progress mb-1" style="height: 6px; background: rgba(255,255,255,0.1);">
+                                    <div id="liveResultBar" class="progress-bar bg-success"
+                                        style="width: 0%; transition: width 0.5s ease;"></div>
+                                </div>
+                                <span id="liveResultConf" class="fw-bold text-white"
+                                    style="font-size: 0.72rem;">0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scan counter -->
+                    <div class="d-flex justify-content-between align-items-center rounded-2 px-2 py-1"
+                        style="background: rgba(255,255,255,0.05);">
+                        <small style="color: #94a3b8; font-size: 0.68rem;"><i
+                                class="bi bi-bar-chart me-1"></i>Scan:</small>
+                        <span id="liveScanCount" class="badge bg-primary rounded-pill"
+                            style="font-size: 0.68rem;">0</span>
+                    </div>
+
+                    <!-- Hanya tombol Matikan -->
+                    <button type="button" id="btnStopWebcam" class="btn btn-outline-danger btn-sm w-100"
+                        style="font-size: 0.75rem;">
+                        <i class="bi bi-stop-circle me-1"></i>Matikan Kamera
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+>>>>>>> Stashed changes
         <div class="row align-items-center">
             <div class="col-md-6 mb-3 mb-md-0">
                 <form id="uploadLeafForm" class="d-flex gap-2">
-                    <input type="file" class="form-control form-control-sm" id="leafImageInput" accept="image/jpeg, image/png, image/webp" required>
+                    <input type="file" class="form-control form-control-sm" id="leafImageInput"
+                        accept="image/jpeg, image/png, image/webp" required>
                     <button type="submit" class="btn btn-emerald btn-sm px-4">
                         <i class="bi bi-cloud-upload me-1"></i> Uji
                     </button>
                 </form>
             </div>
             <div class="col-md-6">
+<<<<<<< Updated upstream
                 <div id="predictResult" class="alert alert-light border mb-0 d-none d-flex align-items-center justify-content-between p-2">
                     <div class="d-flex align-items-center gap-2">
                         <span id="predictBadge" class="badge rounded-pill">-</span>
                         <span id="predictQuality" class="fw-bold text-dark">-</span>
+=======
+                <div id="predictResult"
+                    class="alert alert-light border mb-0 d-none d-flex align-items-center justify-content-between p-2 shadow-sm">
+                    <div class="d-flex align-items-center gap-2">
+                        <img id="predictThumb" src="" alt="Thumbnail Daun" class="rounded border d-none"
+                            style="width: 48px; height: 48px; object-fit: cover;">
+                        <div>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span id="predictBadge" class="badge rounded-pill">-</span>
+                                <span id="predictQuality" class="fw-bold text-dark">-</span>
+                            </div>
+                            <small id="predictConf" class="text-secondary d-block">-</small>
+                        </div>
+>>>>>>> Stashed changes
                     </div>
                     <small id="predictConf" class="text-secondary">-</small>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <script>
+<<<<<<< Updated upstream
     document.addEventListener("DOMContentLoaded", function() {
         const uploadForm = document.getElementById('uploadLeafForm');
         const predictResult = document.getElementById('predictResult');
@@ -297,14 +420,178 @@
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
                 btn.disabled = true;
                 
+=======
+        document.addEventListener("DOMContentLoaded", function () {
+            const uploadForm = document.getElementById('uploadLeafForm');
+            const predictResult = document.getElementById('predictResult');
+            const predictThumb = document.getElementById('predictThumb');
+
+            // Elemen Webcam
+            const btnToggleWebcam = document.getElementById('btnToggleWebcam');
+            const btnWebcamText = document.getElementById('btnWebcamText');
+            const btnStopWebcam = document.getElementById('btnStopWebcam');
+            const webcamContainer = document.getElementById('webcamContainer');
+            const webcamVideo = document.getElementById('webcamVideo');
+            const webcamCanvas = document.getElementById('webcamCanvas');
+
+            // Elemen Live Result
+            const liveResultCard = document.getElementById('liveResultCard');
+            const liveResultPlaceholder = document.getElementById('liveResultPlaceholder');
+            const liveResultContent = document.getElementById('liveResultContent');
+            const liveResultBadge = document.getElementById('liveResultBadge');
+            const liveResultQuality = document.getElementById('liveResultQuality');
+            const liveResultBar = document.getElementById('liveResultBar');
+            const liveResultConf = document.getElementById('liveResultConf');
+            const liveScanCount = document.getElementById('liveScanCount');
+            const autoScanIndicator = document.getElementById('autoScanIndicator');
+
+            let webcamStream = null;
+            let autoScanTimer = null;
+            let isScanning = false;
+            let scanCount = 0;
+
+            // Warna & label per kelas
+            const CLASS_STYLES = {
+                'wrapper': { bg: 'bg-success', label: 'WRAPPER', quality: 'High Quality (Pembungkus Luar)', barClass: 'bg-success', borderColor: '#10b981' },
+                'binder': { bg: 'bg-warning text-dark', label: 'BINDER', quality: 'Medium Quality (Pengikat Tengah)', barClass: 'bg-warning', borderColor: '#f59e0b' },
+                'filler': { bg: 'bg-danger', label: 'FILLER', quality: 'Low Quality (Pengisi Inti)', barClass: 'bg-danger', borderColor: '#ef4444' },
+                'unknown': { bg: 'bg-secondary', label: 'TIDAK DIKENALI', quality: 'Bukan Daun Tembakau', barClass: 'bg-secondary', borderColor: '#64748b' }
+            };
+
+            function showPredictionResult(data) {
+                predictResult.classList.remove('d-none');
+                const cls = data.hasil_klasifikasi.toLowerCase();
+
+                if (cls === 'unknown') {
+                    document.getElementById('predictQuality').innerText = data.kualitas || 'Bukan Daun Tembakau';
+                    document.getElementById('predictConf').innerText = data.message || 'Arahkan kamera ke daun tembakau';
+                    const badge = document.getElementById('predictBadge');
+                    badge.innerText = 'TIDAK DIKENALI';
+                    badge.className = 'badge rounded-pill bg-secondary';
+                    return;
+                }
+
+                document.getElementById('predictQuality').innerText = data.kualitas || data.hasil_klasifikasi;
+                document.getElementById('predictConf').innerText = "Akurasi Keyakinan: " + (data.confidence_score * 100).toFixed(1) + "%";
+
+                const badge = document.getElementById('predictBadge');
+                badge.innerText = data.hasil_klasifikasi.toUpperCase();
+
+                badge.className = "badge rounded-pill";
+                if (data.hasil_klasifikasi === 'wrapper') badge.classList.add("bg-success");
+                else if (data.hasil_klasifikasi === 'binder') badge.classList.add("bg-warning", "text-dark");
+                else badge.classList.add("bg-danger");
+
+                if (predictThumb && data.gambar_url) {
+                    predictThumb.src = data.gambar_url;
+                    predictThumb.classList.remove('d-none');
+                }
+            }
+
+            // Tampilkan hasil live di panel webcam
+            function showLiveResult(data) {
+                const cls = data.hasil_klasifikasi.toLowerCase();
+                const style = CLASS_STYLES[cls] || CLASS_STYLES['filler'];
+                const confPercent = cls === 'unknown' ? '0.0' : (data.confidence_score * 100).toFixed(1);
+
+                // Sembunyikan placeholder, tampilkan konten
+                liveResultPlaceholder.classList.add('d-none');
+                liveResultContent.classList.remove('d-none');
+
+                // Update badge
+                liveResultBadge.className = `badge rounded-pill fs-6 px-4 py-2 shadow ${style.bg}`;
+                liveResultBadge.textContent = style.label;
+
+                // Update quality text
+                liveResultQuality.textContent = style.quality;
+
+                // Update progress bar
+                liveResultBar.style.width = confPercent + '%';
+                liveResultBar.className = `progress-bar ${style.barClass}`;
+                liveResultConf.textContent = confPercent + '%';
+
+                // Update card border glow effect
+                liveResultCard.style.borderColor = style.borderColor;
+                liveResultCard.style.boxShadow = `0 0 20px ${style.borderColor}33`;
+
+                // Flash animation
+                liveResultCard.style.transform = 'scale(1.02)';
+                setTimeout(() => { liveResultCard.style.transform = 'scale(1)'; }, 200);
+
+                // Update scan count (hanya hitung jika bukan unknown)
+                if (cls !== 'unknown') {
+                    scanCount++;
+                    liveScanCount.textContent = scanCount;
+                }
+
+                // Juga update panel hasil upload (bawah)
+                showPredictionResult(data);
+            }
+
+            // Auto-scan: capture frame dan kirim ke API
+            async function autoScanFrame() {
+                if (!webcamStream || isScanning) return;
+                isScanning = true;
+
+                // Blink indicator & update status teks
+                autoScanIndicator.style.opacity = '0.5';
+                setTimeout(() => { autoScanIndicator.style.opacity = '1'; }, 300);
+
+>>>>>>> Stashed changes
                 try {
+                    // Ambil dimensi persis dari box live preview di layar (lebar x tinggi elemen video)
+                    const targetWidth = Math.round(webcamVideo.getBoundingClientRect().width || webcamVideo.clientWidth || 640);
+                    const targetHeight = Math.round(webcamVideo.getBoundingClientRect().height || webcamVideo.clientHeight || 400);
+
+                    const videoWidth = webcamVideo.videoWidth || targetWidth;
+                    const videoHeight = webcamVideo.videoHeight || targetHeight;
+
+                    // Hitung crop sesuai object-fit: cover agar gambar utuh 1:1 persis live preview
+                    const displayAspect = targetWidth / targetHeight;
+                    const videoAspect = videoWidth / videoHeight;
+
+                    let sx, sy, sw, sh;
+                    if (videoAspect > displayAspect) {
+                        sh = videoHeight;
+                        sw = videoHeight * displayAspect;
+                        sx = (videoWidth - sw) / 2;
+                        sy = 0;
+                    } else {
+                        sw = videoWidth;
+                        sh = videoWidth / displayAspect;
+                        sx = 0;
+                        sy = (videoHeight - sh) / 2;
+                    }
+
+                    // Set canvas persis 1:1 sesuai ukuran live preview di layar browser
+                    webcamCanvas.width = targetWidth;
+                    webcamCanvas.height = targetHeight;
+                    const ctx = webcamCanvas.getContext('2d');
+
+                    // Mirror frame agar persis sama dengan live preview di layar
+                    ctx.save();
+                    ctx.translate(targetWidth, 0);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(webcamVideo, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight);
+                    ctx.restore();
+
+                    const blob = await new Promise(resolve => {
+                        webcamCanvas.toBlob(resolve, 'image/jpeg', 0.95);
+                    });
+
+                    if (!blob) { isScanning = false; return; }
+
+                    const formData = new FormData();
+                    formData.append('gambar', blob, 'webcam_autoscan.jpg');
+
                     const res = await fetch('/api/conveyor/predict', {
                         method: 'POST',
                         body: formData
                     });
                     const result = await res.json();
-                    
+
                     if (result.success) {
+<<<<<<< Updated upstream
                         predictResult.classList.remove('d-none');
                         document.getElementById('predictQuality').innerText = result.data.kualitas;
                         document.getElementById('predictConf').innerText = "Akurasi: " + (result.data.confidence_score * 100).toFixed(1) + "%";
@@ -319,10 +606,20 @@
                         else badge.classList.add("bg-danger");
                         
                         // If there's an active JS polling function, we should ideally refresh it, but it will auto refresh.
+=======
+                        showLiveResult(result.data);
+>>>>>>> Stashed changes
                     } else {
-                        alert("Gagal: " + result.message);
+                        console.warn('[Auto-Scan] API Response:', result.message);
+                        if (liveResultPlaceholder && !liveResultPlaceholder.classList.contains('d-none')) {
+                            const hint = liveResultPlaceholder.querySelector('p');
+                            if (hint && result.message) {
+                                hint.textContent = result.message;
+                            }
+                        }
                     }
                 } catch (err) {
+<<<<<<< Updated upstream
                     console.error(err);
                     alert("Terjadi kesalahan jaringan.");
                 } finally {
@@ -333,6 +630,158 @@
             });
         }
     });
+=======
+                    console.error('[Auto-Scan] Error:', err);
+                    if (liveResultPlaceholder) {
+                        const hint = liveResultPlaceholder.querySelector('p');
+                        if (hint) {
+                            hint.textContent = 'Gagal memproses (' + err.message + '). Pastikan server Flask aktif.';
+                        }
+                    }
+                } finally {
+                    isScanning = false;
+                }
+            }
+
+            // 1. Logika Upload Manual
+            if (uploadForm) {
+                uploadForm.addEventListener('submit', async function (e) {
+                    e.preventDefault();
+                    const fileInput = document.getElementById('leafImageInput');
+                    if (!fileInput.files.length) return;
+
+                    const formData = new FormData();
+                    formData.append('gambar', fileInput.files[0]);
+
+                    const btn = uploadForm.querySelector('button[type="submit"]');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
+                    btn.disabled = true;
+
+                    try {
+                        const res = await fetch('/api/conveyor/predict', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const result = await res.json();
+
+                        if (result.success) {
+                            showPredictionResult(result.data);
+                        } else {
+                            alert("Gagal: " + result.message);
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert("Terjadi kesalahan jaringan.");
+                    } finally {
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                        uploadForm.reset();
+                    }
+                });
+            }
+
+            // 2. Logika Live Webcam Browser + Auto-Scan
+            async function startWebcam() {
+                // Cek apakah browser memblokir kamera karena dibuka lewat IP non-secure (misal 127.0.0.1)
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    alert("Browser memblokir kamera di alamat ini karena dianggap koneksi tidak aman (Insecure Context).\n\nSOLUSI: Silakan buka web lewat alamat: http://localhost:5000");
+                    if (window.location.hostname !== 'localhost') {
+                        window.location.href = window.location.href.replace(window.location.hostname, 'localhost');
+                    }
+                    return;
+                }
+
+                try {
+                    let stream = null;
+                    // Minta resolusi HD / ideal agar tangkapan kamera jernih sesuai live preview
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+                        });
+                    } catch (e1) {
+                        try {
+                            stream = await navigator.mediaDevices.getUserMedia({
+                                video: { width: { ideal: 640 }, height: { ideal: 480 } }
+                            });
+                        } catch (e2) {
+                            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        }
+                    }
+
+                    webcamStream = stream;
+                    webcamVideo.srcObject = webcamStream;
+                    webcamVideo.muted = true;
+                    try {
+                        await webcamVideo.play();
+                    } catch (e) {
+                        console.warn("Video play notice:", e);
+                    }
+
+                    webcamContainer.classList.remove('d-none');
+                    btnWebcamText.innerText = "Matikan Kamera";
+                    btnToggleWebcam.classList.replace('btn-emerald', 'btn-danger');
+
+                    // Reset state
+                    scanCount = 0;
+                    liveScanCount.textContent = '0';
+                    liveResultPlaceholder.classList.remove('d-none');
+                    liveResultContent.classList.add('d-none');
+                    const placeholderText = liveResultPlaceholder.querySelector('p');
+                    if (placeholderText) {
+                        placeholderText.textContent = "Kamera aktif. Memindai daun tembakau...";
+                    }
+
+                    // Mulai auto-scan tepat 1.5 - 2 detik setelah kamera aktif
+                    setTimeout(() => {
+                        if (webcamStream) {
+                            autoScanFrame(); // Scan pertama segera pada detik ke-1.5 ~ 2
+                            autoScanTimer = setInterval(autoScanFrame, 2000); // Scan rutin setiap 2 detik
+                        }
+                    }, 1500);
+
+                } catch (err) {
+                    console.error("Gagal membuka webcam:", err);
+                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                        alert("Akses kamera ditolak oleh browser.\n\nSilakan klik icon gembok / tanda seru di samping URL, lalu ubah izin Kamera menjadi 'Allow' (Izinkan), kemudian refresh halaman.");
+                    } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                        alert("Kamera sedang digunakan oleh aplikasi lain (Zoom/Meet/Kamera Windows/tab lain).\n\nSilakan tutup aplikasi tersebut lalu coba lagi.");
+                    } else {
+                        alert("Tidak dapat mengakses kamera: " + (err.message || err.name) + "\n\nPastikan webcam terpasang dan buka web lewat http://localhost:5000");
+                    }
+                }
+            }
+
+            function stopWebcam() {
+                // Stop auto-scan timer
+                if (autoScanTimer) {
+                    clearInterval(autoScanTimer);
+                    autoScanTimer = null;
+                }
+
+                if (webcamStream) {
+                    webcamStream.getTracks().forEach(track => track.stop());
+                    webcamStream = null;
+                }
+                webcamVideo.srcObject = null;
+                webcamContainer.classList.add('d-none');
+                btnWebcamText.innerText = "Buka Live Webcam";
+                btnToggleWebcam.classList.replace('btn-danger', 'btn-emerald');
+                isScanning = false;
+            }
+
+            if (btnToggleWebcam) {
+                btnToggleWebcam.addEventListener('click', function () {
+                    if (webcamStream) stopWebcam();
+                    else startWebcam();
+                });
+            }
+
+            if (btnStopWebcam) {
+                btnStopWebcam.addEventListener('click', stopWebcam);
+            }
+        });
+>>>>>>> Stashed changes
     </script>
 
     <!-- Section 5: Tabel Log Terbaru (10 Data Terakhir) -->
@@ -345,12 +794,14 @@
             <!-- Tab switcher between Gudang & Conveyor -->
             <ul class="nav nav-pills nav-pills-custom gap-1" id="logTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="tab-gudang-btn" data-bs-toggle="pill" data-bs-target="#tab-gudang" type="button" role="tab">
+                    <button class="nav-link active" id="tab-gudang-btn" data-bs-toggle="pill"
+                        data-bs-target="#tab-gudang" type="button" role="tab">
                         <i class="bi bi-building me-1"></i> Sensor Gudang
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="tab-conveyor-btn" data-bs-toggle="pill" data-bs-target="#tab-conveyor" type="button" role="tab">
+                    <button class="nav-link" id="tab-conveyor-btn" data-bs-toggle="pill" data-bs-target="#tab-conveyor"
+                        type="button" role="tab">
                         <i class="bi bi-boxes me-1"></i> Klasifikasi Conveyor
                     </button>
                 </li>

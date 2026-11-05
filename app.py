@@ -89,6 +89,12 @@ def create_app(config_class=Config):
     # Buat tabel jika belum ada
     with app.app_context():
         db.create_all()
+        # Warmup model AI saat booting agar deteksi daun pertama langsung instan tanpa jeda
+        try:
+            from routes.api_conveyor import warmup_model
+            warmup_model(app)
+        except Exception as e:
+            app.logger.warning(f"Gagal melakukan warmup model AI: {e}")
 
     return app
 

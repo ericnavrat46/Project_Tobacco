@@ -16,26 +16,27 @@ def _allowed_file(filename):
 
 def _save_image(file_obj):
     """
-    Simpan file gambar ke filesystem.
+    Simpan file gambar ke filesystem secara cross-platform (Windows & Linux).
     Return: path relatif terhadap static/ (untuk disimpan di DB)
-    Contoh: "uploads/daun/2026/10/02/leaf_a3f2c1.jpg"
-
-    MENGAPA TIDAK SIMPAN KE DATABASE?
-    - 1 gambar JPEG dari kamera: ~200 KB - 1 MB
-    - 1000 klasifikasi per hari x 200 KB = 200 MB/hari di DB
-    - File system jauh lebih efisien untuk binary besar
-    - Query SQL akan sangat lambat jika ada BLOB besar di setiap row
+    Contoh: "uploads/daun/2026/11/05/leaf_a3f2c1.jpg"
     """
     today = datetime.now()
-    date_folder = today.strftime('%Y/%m/%d')
-    upload_dir = os.path.join(current_app.static_folder, UPLOAD_SUBDIR, date_folder)
+    year = str(today.year)
+    month = f"{today.month:02d}"
+    day = f"{today.day:02d}"
+
+    upload_dir = os.path.normpath(os.path.join(current_app.static_folder, 'uploads', 'daun', year, month, day))
     os.makedirs(upload_dir, exist_ok=True)
 
-    ext = file_obj.filename.rsplit('.', 1)[1].lower()
-    filename = f"leaf_{uuid.uuid4().hex[:8]}.{ext}"
-    file_obj.save(os.path.join(upload_dir, filename))
+    ext = 'jpg'
+    if file_obj.filename and '.' in file_obj.filename:
+        ext = file_obj.filename.rsplit('.', 1)[1].lower()
 
-    return f"{UPLOAD_SUBDIR}/{date_folder}/{filename}"
+    filename = f"leaf_{uuid.uuid4().hex[:8]}.{ext}"
+    dest = os.path.join(upload_dir, filename)
+    file_obj.save(dest)
+
+    return f"uploads/daun/{year}/{month}/{day}/{filename}"
 
 
 @api_conveyor_bp.route('', methods=['POST'])
@@ -326,6 +327,97 @@ def get_conveyor_history():
         }), 500
 
 
+<<<<<<< Updated upstream
+=======
+_CACHED_AI_MODEL = None
+_CACHED_SVM_MODEL = None
+_IS_WARMED_UP = False
+
+def _get_ai_model(model_path=None, base_path=None):
+    global _CACHED_AI_MODEL
+    if _CACHED_AI_MODEL is None:
+        root = base_path or (current_app.root_path if current_app else os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        model_keras = os.path.join(root, 'ai', 'models', 'tobacco_model.keras')
+        model_h5 = os.path.join(root, 'ai', 'models', 'tobacco_model.h5')
+        target_path = model_keras if os.path.exists(model_keras) else (model_path or model_h5)
+        if target_path and os.path.exists(target_path):
+            try:
+                import tensorflow as tf
+                os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+                _CACHED_AI_MODEL = tf.keras.models.load_model(target_path)
+            except Exception as err:
+                if current_app:
+                    current_app.logger.warning(f"Model Keras dilewati ({err}). Sistem akan menggunakan model SVM.")
+    return _CACHED_AI_MODEL
+
+
+def _get_svm_model(base_path=None):
+    global _CACHED_SVM_MODEL
+    if _CACHED_SVM_MODEL is None:
+        root = base_path or (current_app.root_path if current_app else os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        svm_path = os.path.join(root, 'ai', 'models', 'tobacco_svm.pkl')
+        if os.path.exists(svm_path):
+            try:
+                import joblib
+                _CACHED_SVM_MODEL = joblib.load(svm_path)
+            except Exception as err:
+                if current_app:
+                    current_app.logger.error(f"Gagal memuat model SVM: {err}")
+    return _CACHED_SVM_MODEL
+
+
+def warmup_model(app=None):
+    """
+    Melakukan pre-load dan warm-up (inferensi dummy) saat server start.
+    Menghilangkan latensi cold-start sehingga deteksi daun pertama langsung instan.
+    """
+    global _IS_WARMED_UP
+    if _IS_WARMED_UP:
+        return
+
+    root = app.root_path if app else None
+    print("[AI WARMUP] Menyiapkan model klasifikasi daun tembakau...")
+    start_t = datetime.now()
+
+    # 1. Coba muat & warm-up model Deep Learning MobileNetV2
+    model = _get_ai_model(base_path=root)
+    if model is not None:
+        try:
+            import numpy as np
+            dummy_input = np.zeros((1, 224, 224, 3), dtype=np.float32)
+            try:
+                _ = model(dummy_input, training=False).numpy()
+            except Exception:
+                _ = model.predict(dummy_input, verbose=0)
+            duration = (datetime.now() - start_t).total_seconds()
+            print(f"[AI WARMUP] Model MobileNetV2 siap dan panas dalam {duration:.2f} detik.")
+            _IS_WARMED_UP = True
+            return
+        except Exception as e:
+            print(f"[AI WARMUP] MobileNetV2 warm-up dilewati: {e}")
+
+    # 2. Coba muat & warm-up model SVM fallback
+    svm = _get_svm_model(base_path=root)
+    if svm is not None:
+        try:
+            import numpy as np
+            from ai.train_svm import extract_feature_vector
+            dummy_img = np.zeros((128, 128, 3), dtype=np.uint8)
+            feat = extract_feature_vector(dummy_img)
+            _ = svm.predict([feat])
+            _ = svm.predict_proba([feat])
+            duration = (datetime.now() - start_t).total_seconds()
+            print(f"[AI WARMUP] Model SVM siap dan panas dalam {duration:.2f} detik.")
+            _IS_WARMED_UP = True
+            return
+        except Exception as e:
+            print(f"[AI WARMUP] SVM warm-up dilewati: {e}")
+
+    _IS_WARMED_UP = True
+    print("[AI WARMUP] Inisialisasi model selesai.")
+
+
+>>>>>>> Stashed changes
 @api_conveyor_bp.route('/predict', methods=['POST'])
 def predict_conveyor():
     """
@@ -361,6 +453,7 @@ def predict_conveyor():
         }), 400
 
     try:
+<<<<<<< Updated upstream
         gambar_path = _save_image(file)
         full_img_path = os.path.join(current_app.static_folder, gambar_path)
         
@@ -383,6 +476,67 @@ def predict_conveyor():
                 img_arr = np.expand_dims(img_arr, axis=0)
 
                 preds = model.predict(img_arr)[0]
+=======
+        # 1. Baca data byte gambar ke RAM terlebih dahulu (In-Memory Processing)
+        img_bytes = file.read()
+        if not img_bytes:
+            return jsonify({
+                "success": False,
+                "data": None,
+                "message": "File gambar kosong atau rusak"
+            }), 400
+
+        # 2. Simpan gambar ke filesystem secara aman
+        gambar_path = None
+        try:
+            today = datetime.now()
+            year = str(today.year)
+            month = f"{today.month:02d}"
+            day = f"{today.day:02d}"
+
+            upload_dir = os.path.normpath(os.path.join(current_app.static_folder, 'uploads', 'daun', year, month, day))
+            os.makedirs(upload_dir, exist_ok=True)
+
+            ext = 'jpg'
+            if file.filename and '.' in file.filename:
+                ext = file.filename.rsplit('.', 1)[1].lower()
+
+            filename = f"leaf_{uuid.uuid4().hex[:8]}.{ext}"
+            file_dest = os.path.join(upload_dir, filename)
+            with open(file_dest, 'wb') as f_out:
+                f_out.write(img_bytes)
+            gambar_path = f"uploads/daun/{year}/{month}/{day}/{filename}"
+            print(f"[CONVEYOR CAMERA] Gambar daun berhasil disimpan: {gambar_path}")
+        except Exception as save_err:
+            current_app.logger.warning(f"Gagal simpan arsip gambar ke disk: {save_err}")
+
+        # 3. Decode gambar langsung dari memori RAM (tanpa tunggu baca ulang disk)
+        import cv2
+        import numpy as np
+        np_arr = np.frombuffer(img_bytes, np.uint8)
+        img_cv = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+        hasil = None
+        confidence = 0.0
+        probabilities = {}
+
+        # ================================================================
+        # 1. LANGSUNG EKSEKUSI MODEL UTAMA (MobileNetV2 Deep Learning)
+        # ================================================================
+        model = _get_ai_model()
+        if model is not None and img_cv is not None:
+            try:
+                # Preprocessing langsung dari memori: BGR -> RGB, resize 224x224, normalisasi 0-1
+                img_rgb = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
+                img_resized = cv2.resize(img_rgb, (224, 224), interpolation=cv2.INTER_AREA)
+                img_arr = np.expand_dims(img_resized.astype(np.float32) / 255.0, axis=0)
+
+                # Eksekusi langsung tanpa batch predict overhead (jauh lebih instan)
+                try:
+                    preds = model(img_arr, training=False).numpy()[0]
+                except Exception:
+                    preds = model.predict(img_arr, verbose=0)[0]
+>>>>>>> Stashed changes
                 
                 # Pemetaan Keras (berdasarkan urutan abjad/folder atau yang di set di train.py)
                 # 0: Low Quality (filler), 1: Medium Quality (binder), 2: High Quality (wrapper)
@@ -398,6 +552,7 @@ def predict_conveyor():
         
         # Fallback ke Simulasi jika AI asli gagal/belum ada
         if not hasil:
+<<<<<<< Updated upstream
             categories = ['wrapper', 'binder', 'filler']
             hasil = random.choice(categories)
             confidence = round(random.uniform(0.75, 0.99), 4)
@@ -412,14 +567,73 @@ def predict_conveyor():
         db.session.commit()
 
         # Pemetaan untuk UI
+=======
+            svm_model = _get_svm_model()
+            if svm_model is not None and img_cv is not None:
+                try:
+                    from ai.train_svm import extract_feature_vector
+                    
+                    feat = extract_feature_vector(img_cv)
+                    pred_idx = int(svm_model.predict([feat])[0])
+                    probas = svm_model.predict_proba([feat])[0]
+                    keras_classes = ['filler', 'binder', 'wrapper']
+                    hasil = keras_classes[pred_idx]
+                    confidence = round(float(probas[pred_idx]), 4)
+                    probabilities = {
+                        'filler': round(float(probas[0]), 4),
+                        'binder': round(float(probas[1]), 4),
+                        'wrapper': round(float(probas[2]), 4)
+                    }
+                except Exception as e:
+                    current_app.logger.warning(f"Gagal prediksi model SVM: {e}")
+
+        # Fallback default aman jika semua model belum dimuat
+        if not hasil:
+            hasil = 'binder'
+            confidence = 0.8800
+            probabilities = {'filler': 0.05, 'binder': 0.88, 'wrapper': 0.07}
+
+        # ================================================================
+        # 3. SIMPAN KE DATABASE & KEMBALIKAN HASIL PREDIKSI (RESILIENT)
+        # ================================================================
+>>>>>>> Stashed changes
         quality_map = {
             'wrapper': 'High Quality',
             'binder': 'Medium Quality',
             'filler': 'Low Quality'
         }
 
+<<<<<<< Updated upstream
         response_data = new_record.to_dict()
         response_data['kualitas'] = quality_map[hasil]
+=======
+        response_data = None
+        try:
+            new_record = KlasifikasiDaun(
+                hasil_klasifikasi=hasil,
+                confidence_score=confidence,
+                gambar_path=gambar_path
+            )
+            db.session.add(new_record)
+            db.session.commit()
+            response_data = new_record.to_dict()
+        except Exception as db_err:
+            db.session.rollback()
+            current_app.logger.warning(f"Gagal simpan ke database ({db_err}). Mengirim hasil prediksi langsung ke browser.")
+            response_data = {
+                'id': 0,
+                'hasil_klasifikasi': hasil,
+                'confidence_score': confidence,
+                'confidence_percent': round(confidence * 100, 2),
+                'gambar_url': f"/static/{gambar_path}" if gambar_path else None,
+                'has_vector': False,
+                'timestamp_display': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'db_status': 'MySQL tidak terhubung'
+            }
+
+        response_data['kualitas'] = quality_map.get(hasil, hasil.capitalize())
+        response_data['probabilities'] = probabilities
+>>>>>>> Stashed changes
 
         return jsonify({
             "success": True,
