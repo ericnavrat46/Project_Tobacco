@@ -215,13 +215,13 @@ document.addEventListener('DOMContentLoaded', function () {
             if (data.success && data.reply) {
                 appendMessage('bot', data.reply);
             } else {
-                appendMessage('bot', 'ΓÜá∩╕Å ' + (data.error || 'Terjadi kesalahan saat menghubungi server AI.'));
+                appendMessage('bot', '\u26a0\ufe0f ' + (data.error || 'Terjadi kesalahan saat menghubungi server AI.'));
             }
         } catch (err) {
             showTyping(false);
             input.disabled = false;
             input.focus();
-            appendMessage('bot', 'ΓÜá∩╕Å Gagal terhubung ke server. Periksa koneksi internet Anda.');
+            appendMessage('bot', '\u26a0\ufe0f Gagal terhubung ke server. Periksa koneksi internet Anda.');
         }
     }
 
