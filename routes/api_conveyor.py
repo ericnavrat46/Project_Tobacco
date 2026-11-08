@@ -395,6 +395,7 @@ def get_conveyor_history():
 
 
 _CACHED_AI_MODEL = None
+_CACHED_CLASS_NAMES = None
 
 def _get_ai_model(model_path=None):
     global _CACHED_AI_MODEL
@@ -409,6 +410,18 @@ def _get_ai_model(model_path=None):
             except Exception as err:
                 current_app.logger.error(f"Gagal memuat model Keras: {err}")
     return _CACHED_AI_MODEL
+
+def _get_class_names():
+    global _CACHED_CLASS_NAMES
+    if _CACHED_CLASS_NAMES is None:
+        import json as _json
+        cn_path = os.path.join(current_app.root_path, 'ai', 'models', 'class_names.json')
+        if os.path.exists(cn_path):
+            with open(cn_path) as f:
+                _CACHED_CLASS_NAMES = _json.load(f)
+        else:
+            _CACHED_CLASS_NAMES = ['Low', 'Binder_Medium', 'Filler', 'Quality', 'Wrapper_High']
+    return _CACHED_CLASS_NAMES
 
 
 def _get_svm_model(base_path=None):
@@ -608,18 +621,51 @@ def predict_conveyor():
                 except Exception:
                     preds = model.predict(img_arr, verbose=0)[0]
                 
-                # Pemetaan Keras (berdasarkan urutan abjad/folder atau yang di set di train.py)
-                # 0: Low Quality (filler), 1: Medium Quality (binder), 2: High Quality (wrapper)
-                keras_classes = ['filler', 'binder', 'wrapper']
-                pred_idx = int(np.argmax(preds))
+                class_names = _get_class_names()
+                num_outputs = len(preds)
 
-                hasil = keras_classes[pred_idx]
-                confidence = round(float(preds[pred_idx]), 4)
-                probabilities = {
-                    'filler': round(float(preds[0]), 4),
-                    'binder': round(float(preds[1]), 4),
-                    'wrapper': round(float(preds[2]), 4)
-                }
+                if num_outputs == 5 and len(class_names) == 5:
+                    # ── Model multi-label baru (5 output sigmoid) ──
+                    # Kelas: Low, Binder_Medium, Filler, Quality, Wrapper_High
+                    multi_probs = {cn: round(float(preds[i]), 4) for i, cn in enumerate(class_names)}
+
+                    # Tentukan klasifikasi utama berdasarkan kombinasi label
+                    low_prob = float(preds[0])
+                    binder_prob = float(preds[1])
+                    filler_prob = float(preds[2])
+                    wrapper_prob = float(preds[4])
+
+                    # Kombinasi yang dikenal dari dataset:
+                    # Filler: Low=1, Filler=1, Quality=1         -> filler (Low Quality)
+                    # Binder: Binder_Medium=1, Quality=1         -> binder (Medium Quality)
+                    # Wrapper: Quality=1, Wrapper_High=1         -> wrapper (High Quality)
+                    if wrapper_prob > 0.5:
+                        hasil = 'wrapper'
+                        confidence = round(wrapper_prob, 4)
+                    elif binder_prob > 0.5:
+                        hasil = 'binder'
+                        confidence = round(binder_prob, 4)
+                    else:
+                        hasil = 'filler'
+                        confidence = round(max(low_prob, filler_prob), 4)
+
+                    probabilities = {
+                        'filler': round(max(low_prob, filler_prob), 4),
+                        'binder': round(binder_prob, 4),
+                        'wrapper': round(wrapper_prob, 4)
+                    }
+                    probabilities['multilabel'] = multi_probs
+                else:
+                    # ── Model lama (3 output softmax) ──
+                    keras_classes = ['filler', 'binder', 'wrapper']
+                    pred_idx = int(np.argmax(preds))
+                    hasil = keras_classes[pred_idx]
+                    confidence = round(float(preds[pred_idx]), 4)
+                    probabilities = {
+                        'filler': round(float(preds[0]), 4),
+                        'binder': round(float(preds[1]), 4),
+                        'wrapper': round(float(preds[2]), 4)
+                    }
             except Exception as e:
                 current_app.logger.error(f"Gagal prediksi MobileNetV2: {e}")
 

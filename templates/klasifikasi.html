@@ -1,0 +1,924 @@
+{% extends "base.html" %}
+
+{% block title %}Klasifikasi Mutu Daun Tembakau — Tobacco Guard{% endblock %}
+
+{% block head %}
+<style>
+    /* ── Tab Mode Switcher ──────────────────────────────── */
+    .mode-tab-btn {
+        border-radius: 0.5rem;
+        font-weight: 600;
+        padding: 0.5rem 1.25rem;
+        transition: all 0.2s ease;
+    }
+    .mode-tab-btn.active {
+        background-color: var(--bs-primary, #10b981) !important;
+        color: #fff !important;
+    }
+
+    /* ── Upload Zone ───────────────────────────────────── */
+    .upload-zone {
+        border: 2.5px dashed var(--bs-border-color);
+        border-radius: 1rem;
+        padding: 2.5rem 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        background: var(--bg-card, rgba(255,255,255,0.03));
+        position: relative;
+    }
+    .upload-zone:hover,
+    .upload-zone.dragover {
+        border-color: #10b981;
+        background: rgba(16, 185, 129, 0.06);
+        transform: translateY(-2px);
+    }
+    .upload-zone .icon-upload {
+        font-size: 3rem;
+        color: #10b981;
+        opacity: 0.8;
+    }
+
+    /* ── Preview & Video Containers ────────────────────── */
+    .media-box {
+        position: relative;
+        border-radius: 0.75rem;
+        overflow: hidden;
+        background: #000;
+        border: 1px solid var(--border-color-strong, rgba(255,255,255,0.1));
+    }
+    .media-box img {
+        width: 100%;
+        max-height: 420px;
+        object-fit: contain;
+    }
+    .btn-clear-preview {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        z-index: 10;
+    }
+
+    /* ── Webcam Video & Overlay ────────────────────────── */
+    #webcamVideo {
+        width: 100%;
+        height: 380px;
+        object-fit: cover;
+        background: #000;
+        transform: scaleX(-1);
+    }
+    #edgeOverlayCanvas {
+        pointer-events: none;
+        object-fit: cover;
+    }
+    .webcam-guide-box {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90%;
+        height: 85%;
+        pointer-events: none;
+        border: 2px dashed rgba(217, 119, 6, 0.9);
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+        border-radius: 0.5rem;
+    }
+
+    /* ── Result Card ───────────────────────────────────── */
+    .result-card {
+        border-radius: 1rem;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    .result-header {
+        padding: 1.5rem;
+        text-align: center;
+        transition: background 0.3s ease;
+    }
+    .result-header.wrapper { background: linear-gradient(135deg, #10b981, #059669); }
+    .result-header.binder  { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .result-header.filler  { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .result-header.unknown { background: linear-gradient(135deg, #6b7280, #4b5563); }
+    .result-header h2 {
+        color: #fff;
+        font-weight: 700;
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .result-header .quality-label {
+        color: rgba(255,255,255,0.9);
+        font-size: 0.95rem;
+        margin-top: 0.25rem;
+    }
+
+    /* ── Probability Bars ──────────────────────────────── */
+    .prob-bar-track {
+        height: 10px;
+        border-radius: 5px;
+        background: var(--bs-tertiary-bg, rgba(255,255,255,0.08));
+        overflow: hidden;
+    }
+    .prob-bar-fill {
+        height: 100%;
+        border-radius: 5px;
+        transition: width 0.5s ease;
+    }
+    .prob-bar-fill.wrapper { background: #10b981; }
+    .prob-bar-fill.binder  { background: #f59e0b; }
+    .prob-bar-fill.filler  { background: #ef4444; }
+
+    /* ── Multi-label Chips ─────────────────────────────── */
+    .multilabel-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 0.6rem;
+    }
+    .multilabel-chip {
+        padding: 0.6rem 0.75rem;
+        border-radius: 0.6rem;
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.85rem;
+        border: 1px solid var(--bs-border-color, rgba(255,255,255,0.12));
+        transition: all 0.3s ease;
+    }
+    .multilabel-chip.active {
+        border-color: #10b981;
+        background: rgba(16, 185, 129, 0.12);
+        color: #10b981;
+    }
+    .multilabel-chip.inactive {
+        opacity: 0.5;
+    }
+
+    /* ── History Badges ────────────────────────────────── */
+    .history-badge {
+        font-size: 0.75rem;
+        padding: 0.3em 0.7em;
+        border-radius: 0.4rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .history-badge.wrapper { background: rgba(16,185,129,0.15); color: #10b981; }
+    .history-badge.binder  { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .history-badge.filler  { background: rgba(239,68,68,0.15);  color: #ef4444; }
+    .history-badge.unknown { background: rgba(100,116,139,0.15); color: #94a3b8; }
+
+    /* ── Spinner Overlay ───────────────────────────────── */
+    .spinner-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,0.55);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.75rem;
+        z-index: 20;
+        gap: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 px-lg-4">
+
+    <!-- Page Header & Mode Switcher -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+        <div>
+            <h4 class="fw-bold mb-1">
+                <i class="bi bi-cpu text-emerald me-2"></i>Klasifikasi Mutu Daun Tembakau
+            </h4>
+            <p class="text-secondary small mb-0">
+                Pindai mutu daun tembakau via <strong>Upload Gambar</strong> atau <strong>Live Webcam Scanner</strong> (Model MobileNetV2 Multi-Label)
+            </p>
+        </div>
+
+        <!-- Mode Toggle Pills -->
+        <div class="bg-surface-soft p-1 rounded-3 border d-flex gap-1">
+            <button type="button" class="btn btn-sm mode-tab-btn active" id="tabUploadBtn" onclick="switchMode('upload')">
+                <i class="bi bi-cloud-arrow-up me-1"></i> Upload Gambar
+            </button>
+            <button type="button" class="btn btn-sm mode-tab-btn text-secondary" id="tabWebcamBtn" onclick="switchMode('webcam')">
+                <i class="bi bi-camera-video me-1"></i> Live Webcam
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-4">
+
+        <!-- ══════════════ LEFT COLUMN: Input Mode (Upload / Webcam) ══════════════ -->
+        <div class="col-12 col-lg-5">
+            <div class="dashboard-card h-100 p-3 p-lg-4">
+
+                <!-- ─── 1. MODE UPLOAD GAMBAR ─── -->
+                <div id="modeUploadSection">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="fw-semibold mb-0"><i class="bi bi-image me-2 text-emerald"></i>Pilih Gambar Daun</h6>
+                        <span class="badge bg-secondary-subtle text-secondary small">JPG / PNG / WEBP</span>
+                    </div>
+
+                    <!-- Upload Zone -->
+                    <div id="uploadZone" class="upload-zone mb-3" onclick="document.getElementById('fileInput').click()">
+                        <i class="bi bi-cloud-arrow-up icon-upload d-block mb-2"></i>
+                        <p class="fw-semibold mb-1">Klik atau seret file daun ke sini</p>
+                        <p class="text-muted small mb-0">Ukuran file maksimal 10 MB</p>
+                    </div>
+                    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" class="d-none">
+
+                    <!-- Preview Container -->
+                    <div id="previewWrapper" class="d-none mb-3">
+                        <div class="media-box">
+                            <img id="previewImg" src="" alt="Preview Daun">
+                            <button class="btn btn-sm btn-dark btn-clear-preview rounded-circle" onclick="clearPreview()" title="Hapus gambar">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                            <div id="spinnerOverlay" class="spinner-overlay d-none">
+                                <div class="spinner-border text-emerald" role="status"></div>
+                                <span class="small text-white fw-semibold">Memproses AI...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button id="btnClassify" class="btn btn-emerald w-100 py-2 fw-semibold mb-3" disabled onclick="classifyUploadedImage()">
+                        <i class="bi bi-play-circle me-1"></i> Klasifikasikan Daun
+                    </button>
+                </div>
+
+                <!-- ─── 2. MODE LIVE WEBCAM ─── -->
+                <div id="modeWebcamSection" class="d-none">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="fw-semibold mb-0">
+                            <i class="bi bi-camera-video text-danger me-2"></i>Live Webcam Scanner
+                        </h6>
+                        <span id="autoScanBadge" class="badge bg-secondary rounded-pill small">Siaga</span>
+                    </div>
+
+                    <!-- Video Container -->
+                    <div class="media-box position-relative mb-3">
+                        <video id="webcamVideo" autoplay playsinline muted></video>
+                        <canvas id="edgeOverlayCanvas" class="position-absolute top-0 start-0 w-100 h-100"></canvas>
+                        <div class="webcam-guide-box"></div>
+
+                        <!-- Top indicators -->
+                        <div class="position-absolute top-0 start-0 m-2 d-flex gap-1 align-items-center">
+                            <span id="scanStatusBadge" class="badge bg-danger rounded-pill shadow-sm small">
+                                <i class="bi bi-record-circle me-1"></i>LIVE
+                            </span>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">
+                                <i class="bi bi-bounding-box me-1"></i>CANNY EDGE
+                            </span>
+                        </div>
+
+                        <!-- Scan Counter badge -->
+                        <div class="position-absolute bottom-0 end-0 m-2">
+                            <span class="badge bg-dark bg-opacity-75 text-white border px-2 py-1">
+                                Scan: <strong id="liveScanCount" class="text-emerald">0</strong>
+                            </span>
+                        </div>
+                    </div>
+                    <canvas id="webcamCanvas" class="d-none"></canvas>
+
+                    <!-- Webcam Control Buttons -->
+                    <div class="d-flex gap-2 mb-3">
+                        <button type="button" class="btn btn-emerald flex-fill py-2 fw-semibold" id="btnToggleWebcam" onclick="toggleWebcam()">
+                            <i class="bi bi-camera-video-fill me-1"></i> <span id="btnWebcamText">Mulai Kamera</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary py-2 px-3" id="btnManualCapture" onclick="manualCaptureFrame()" title="Ambil Frame Sekarang">
+                            <i class="bi bi-camera"></i> Scan Manual
+                        </button>
+                    </div>
+
+                    <div class="alert alert-light border p-2 small mb-0 d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle text-primary"></i>
+                        <span>Kamera akan otomatis mendeteksi daun pada area pandang &amp; mengeksekusi Canny edge overlay.</span>
+                    </div>
+                </div>
+
+                <!-- Model Info Footer -->
+                <div class="p-2 mt-3 rounded-2 bg-surface-soft border text-secondary small d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-cpu me-1"></i> Model: <strong>MobileNetV2 Multi-Label</strong></span>
+                    <span class="badge bg-emerald-subtle text-emerald">5 Kelas</span>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ══════════════ RIGHT COLUMN: Hasil & Telemetri ══════════════ -->
+        <div class="col-12 col-lg-7">
+
+            <!-- Card Hasil Prediksi -->
+            <div id="resultSection" class="d-none">
+                <div class="card border-0 shadow-sm result-card mb-4">
+                    <!-- Header Status Mutu Daun -->
+                    <div id="resultHeader" class="result-header unknown">
+                        <h2 id="resultLabel">—</h2>
+                        <div id="resultQuality" class="quality-label">Menunggu klasifikasi...</div>
+                    </div>
+
+                    <div class="card-body p-4">
+                        <!-- Metrik Utama -->
+                        <div class="row g-2 mb-4">
+                            <div class="col-4 text-center border-end">
+                                <div class="fs-2 fw-bold text-emerald" id="resultConfidence">0.0%</div>
+                                <div class="text-muted small">Confidence Score</div>
+                            </div>
+                            <div class="col-4 text-center border-end">
+                                <div class="fs-5 fw-semibold mt-1" id="resultEdge">—</div>
+                                <div class="text-muted small">Garis Tepi (Canny)</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div class="fs-5 fw-semibold mt-1" id="resultTimestamp">—</div>
+                                <div class="text-muted small">Waktu Scan</div>
+                            </div>
+                        </div>
+
+                        <!-- Bar Probabilitas 3 Kelas Utama -->
+                        <h6 class="fw-semibold mb-3"><i class="bi bi-bar-chart-fill me-2 text-emerald"></i>Probabilitas Kelas Mutu</h6>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="fw-semibold small">🟢 Wrapper (High Quality — Pembungkus Luar)</span>
+                                <span class="fw-bold small" id="probWrapper">0%</span>
+                            </div>
+                            <div class="prob-bar-track">
+                                <div class="prob-bar-fill wrapper" id="barWrapper" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="fw-semibold small">🟡 Binder (Medium Quality — Pengikat Tengah)</span>
+                                <span class="fw-bold small" id="probBinder">0%</span>
+                            </div>
+                            <div class="prob-bar-track">
+                                <div class="prob-bar-fill binder" id="barBinder" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="fw-semibold small">🔴 Filler (Low Quality — Pengisi Inti)</span>
+                                <span class="fw-bold small" id="probFiller">0%</span>
+                            </div>
+                            <div class="prob-bar-track">
+                                <div class="prob-bar-fill filler" id="barFiller" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Multi-label 5 Classes Details -->
+                        <div id="multilabelSection" class="mt-4 pt-3 border-top d-none">
+                            <h6 class="fw-semibold mb-3"><i class="bi bi-tags-fill me-2 text-primary"></i>Output Detil Multi-Label Model (5 Kelas)</h6>
+                            <div class="multilabel-grid" id="multilabelGrid"></div>
+                        </div>
+
+                        <!-- Canny Edge Info -->
+                        <div id="edgeSection" class="mt-4 pt-3 border-top d-none">
+                            <h6 class="fw-semibold mb-2"><i class="bi bi-bounding-box me-2 text-success"></i>Informasi Kontur &amp; Tepi Daun</h6>
+                            <div class="small text-secondary" id="edgeDetail"></div>
+                        </div>
+
+                        <!-- Annotated Image (hasil Canny kontur) -->
+                        <div id="annotatedSection" class="mt-4 pt-3 border-top d-none">
+                            <h6 class="fw-semibold mb-2"><i class="bi bi-check2-circle text-emerald me-1"></i>Gambar Terarsip Bergaris Tepi</h6>
+                            <div class="media-box" style="max-height: 280px;">
+                                <img id="annotatedImg" src="" alt="Annotated Leaf" style="max-height: 280px; object-fit: contain;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Placeholder Saat Belum Ada Scan -->
+            <div id="placeholderSection">
+                <div class="dashboard-card p-5 text-center">
+                    <i class="bi bi-leaf text-emerald" style="font-size: 4.5rem; opacity: 0.25;"></i>
+                    <h5 class="fw-bold mt-3 mb-2">Belum Ada Daun Dipindai</h5>
+                    <p class="text-secondary small mb-0" style="max-width: 420px; margin: 0 auto;">
+                        Silakan unggah gambar daun tembakau atau nyalakan <strong>Live Webcam</strong> untuk melakukan klasifikasi otomatis mutu daun (Wrapper, Binder, atau Filler).
+                    </p>
+                </div>
+            </div>
+
+            <!-- Tabel Riwayat 10 Klasifikasi Terakhir -->
+            <div class="dashboard-card mt-4">
+                <div class="card-header-custom d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-clock-history text-emerald fs-5"></i>
+                        <h6 class="mb-0 fw-bold">Riwayat Klasifikasi Terbaru</h6>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="loadHistory()" title="Segarkan Riwayat">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                                <tr class="text-secondary small">
+                                    <th class="ps-3">Waktu</th>
+                                    <th>Hasil Klasifikasi</th>
+                                    <th>Confidence</th>
+                                    <th class="pe-3 text-end">Thumbnail</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyBody">
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">Memuat riwayat klasifikasi...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ─────────────────────────────────────────────────────────────
+// STATE & VARIABLES
+// ─────────────────────────────────────────────────────────────
+let currentMode = 'upload'; // 'upload' | 'webcam'
+let selectedFile = null;
+
+// Webcam states
+let webcamStream = null;
+let autoScanTimer = null;
+let edgeAnimId = null;
+let isScanning = false;
+let scanCount = 0;
+
+const CLASS_STYLES = {
+    'wrapper': { bg: 'wrapper', label: 'WRAPPER', quality: 'High Quality (Pembungkus Luar)' },
+    'binder':  { bg: 'binder',  label: 'BINDER',  quality: 'Medium Quality (Pengikat Tengah)' },
+    'filler':  { bg: 'filler',  label: 'FILLER',  quality: 'Low Quality (Pengisi Inti)' },
+    'unknown': { bg: 'unknown', label: 'TIDAK DIKENALI', quality: 'Bukan Daun Tembakau' }
+};
+
+// ─────────────────────────────────────────────────────────────
+// MODE SWITCHER (UPLOAD vs WEBCAM)
+// ─────────────────────────────────────────────────────────────
+function switchMode(mode) {
+    currentMode = mode;
+    const tabUploadBtn = document.getElementById('tabUploadBtn');
+    const tabWebcamBtn = document.getElementById('tabWebcamBtn');
+    const modeUploadSection = document.getElementById('modeUploadSection');
+    const modeWebcamSection = document.getElementById('modeWebcamSection');
+
+    if (mode === 'upload') {
+        tabUploadBtn.classList.add('active');
+        tabUploadBtn.classList.remove('text-secondary');
+        tabWebcamBtn.classList.remove('active');
+        tabWebcamBtn.classList.add('text-secondary');
+
+        modeUploadSection.classList.remove('d-none');
+        modeWebcamSection.classList.add('d-none');
+
+        // Matikan kamera jika aktif saat beralih ke mode upload
+        if (webcamStream) stopWebcam();
+    } else {
+        tabWebcamBtn.classList.add('active');
+        tabWebcamBtn.classList.remove('text-secondary');
+        tabUploadBtn.classList.remove('active');
+        tabUploadBtn.classList.add('text-secondary');
+
+        modeUploadSection.classList.add('d-none');
+        modeWebcamSection.classList.remove('d-none');
+
+        // Otomatis mulai webcam
+        startWebcam();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 1. FILE UPLOAD LOGIC
+// ─────────────────────────────────────────────────────────────
+const fileInput = document.getElementById('fileInput');
+const uploadZone = document.getElementById('uploadZone');
+const previewWrapper = document.getElementById('previewWrapper');
+const previewImg = document.getElementById('previewImg');
+const btnClassify = document.getElementById('btnClassify');
+
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file) {
+    if (file.size > 10 * 1024 * 1024) {
+        alert('Ukuran file melebihi 10 MB');
+        return;
+    }
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        previewImg.src = e.target.result;
+        uploadZone.classList.add('d-none');
+        previewWrapper.classList.remove('d-none');
+        btnClassify.disabled = false;
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearPreview() {
+    selectedFile = null;
+    fileInput.value = '';
+    previewImg.src = '';
+    previewWrapper.classList.add('d-none');
+    uploadZone.classList.remove('d-none');
+    btnClassify.disabled = true;
+}
+
+async function classifyUploadedImage() {
+    if (!selectedFile) return;
+
+    btnClassify.disabled = true;
+    btnClassify.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Menganalisis...';
+    document.getElementById('spinnerOverlay').classList.remove('d-none');
+
+    const formData = new FormData();
+    formData.append('gambar', selectedFile);
+
+    try {
+        const res = await fetch('/api/conveyor/predict', { method: 'POST', body: formData });
+        const json = await res.json();
+
+        if (json.success && json.data) {
+            displayClassificationResult(json.data);
+            loadHistory();
+        } else {
+            alert(json.message || 'Gagal melakukan klasifikasi');
+        }
+    } catch (err) {
+        alert('Kesalahan jaringan: ' + err.message);
+    } finally {
+        document.getElementById('spinnerOverlay').classList.add('d-none');
+        btnClassify.disabled = false;
+        btnClassify.innerHTML = '<i class="bi bi-play-circle me-1"></i> Klasifikasikan Daun';
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 2. LIVE WEBCAM & REALTIME CANNY OVERLAY
+// ─────────────────────────────────────────────────────────────
+const webcamVideo = document.getElementById('webcamVideo');
+const edgeOverlayCanvas = document.getElementById('edgeOverlayCanvas');
+const webcamCanvas = document.getElementById('webcamCanvas');
+const btnWebcamText = document.getElementById('btnWebcamText');
+const btnToggleWebcamBtn = document.getElementById('btnToggleWebcam');
+const autoScanBadge = document.getElementById('autoScanBadge');
+const liveScanCount = document.getElementById('liveScanCount');
+
+function renderLiveLeafEdges() {
+    if (!webcamStream || webcamVideo.paused || webcamVideo.ended) return;
+
+    const displayW = webcamVideo.clientWidth;
+    const displayH = webcamVideo.clientHeight;
+    if (displayW > 0 && displayH > 0) {
+        if (edgeOverlayCanvas.width !== displayW || edgeOverlayCanvas.height !== displayH) {
+            edgeOverlayCanvas.width = displayW;
+            edgeOverlayCanvas.height = displayH;
+        }
+        const ovCtx = edgeOverlayCanvas.getContext('2d');
+        ovCtx.clearRect(0, 0, displayW, displayH);
+
+        const scaleFactor = 2;
+        const procW = Math.floor(displayW / scaleFactor);
+        const procH = Math.floor(displayH / scaleFactor);
+
+        if (!window._edgeProcCanvas) {
+            window._edgeProcCanvas = document.createElement('canvas');
+        }
+        if (window._edgeProcCanvas.width !== procW || window._edgeProcCanvas.height !== procH) {
+            window._edgeProcCanvas.width = procW;
+            window._edgeProcCanvas.height = procH;
+        }
+        const pCtx = window._edgeProcCanvas.getContext('2d', { willReadFrequently: true });
+
+        pCtx.save();
+        pCtx.translate(procW, 0);
+        pCtx.scale(-1, 1);
+        pCtx.drawImage(webcamVideo, 0, 0, procW, procH);
+        pCtx.restore();
+
+        const imgData = pCtx.getImageData(0, 0, procW, procH);
+        const data = imgData.data;
+        const totalPixels = procW * procH;
+
+        const mask = new Uint8Array(totalPixels);
+        let leafPixelCount = 0;
+
+        for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+            const r = data[i], g = data[i+1], b = data[i+2];
+            const isRedBelt = (r > 110) && (r > g + 65) && (r > b + 60);
+            const isDriedTobacco = !isRedBelt &&
+                                   (r >= 50 && r <= 220) &&
+                                   (g >= 40 && g <= 185) &&
+                                   (b <= 135) &&
+                                   (r >= g) &&
+                                   (g > b + 15) &&
+                                   (r > b + 25) &&
+                                   ((r - g) <= 50);
+
+            if (isDriedTobacco) {
+                mask[p] = 1;
+                leafPixelCount++;
+            } else {
+                mask[p] = 0;
+            }
+        }
+
+        if (leafPixelCount > totalPixels * 0.01) {
+            const cleanMask = new Uint8Array(totalPixels);
+            for (let y = 1; y < procH - 1; y++) {
+                for (let x = 1; x < procW - 1; x++) {
+                    const idx = y * procW + x;
+                    if (mask[idx] === 1) {
+                        cleanMask[idx] = 1;
+                    } else {
+                        const neighbors = mask[idx-1] + mask[idx+1] + mask[idx-procW] + mask[idx+procW];
+                        if (neighbors >= 3) cleanMask[idx] = 1;
+                    }
+                }
+            }
+
+            ovCtx.save();
+            ovCtx.lineWidth = 3;
+            ovCtx.strokeStyle = '#00FF66';
+            ovCtx.shadowColor = '#00FF66';
+            ovCtx.shadowBlur = 8;
+            ovCtx.beginPath();
+
+            const scale = scaleFactor;
+            for (let y = 1; y < procH - 1; y++) {
+                for (let x = 1; x < procW - 1; x++) {
+                    const idx = y * procW + x;
+                    if (cleanMask[idx] === 1) {
+                        const isEdge = (cleanMask[idx-1] === 0 || cleanMask[idx+1] === 0 ||
+                                        cleanMask[idx-procW] === 0 || cleanMask[idx+procW] === 0);
+                        if (isEdge) {
+                            ovCtx.rect(x * scale, y * scale, scale, scale);
+                        }
+                    }
+                }
+            }
+            ovCtx.stroke();
+            ovCtx.restore();
+        }
+    }
+
+    edgeAnimId = requestAnimationFrame(renderLiveLeafEdges);
+}
+
+async function startWebcam() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Browser memblokir kamera di alamat ini. Buka via http://localhost:5000");
+        return;
+    }
+
+    try {
+        let stream = null;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+            });
+        } catch (e1) {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+
+        webcamStream = stream;
+        webcamVideo.srcObject = webcamStream;
+        webcamVideo.muted = true;
+        await webcamVideo.play();
+
+        btnWebcamText.innerText = "Matikan Kamera";
+        btnToggleWebcamBtn.classList.replace('btn-emerald', 'btn-danger');
+        autoScanBadge.className = "badge bg-success rounded-pill small";
+        autoScanBadge.textContent = "Scanning Aktif (5s)";
+
+        if (edgeAnimId) cancelAnimationFrame(edgeAnimId);
+        edgeAnimId = requestAnimationFrame(renderLiveLeafEdges);
+
+        // Auto-scan cycle setiap 5 detik
+        setTimeout(() => {
+            if (webcamStream) {
+                autoScanFrame();
+                autoScanTimer = setInterval(autoScanFrame, 5000);
+            }
+        }, 1200);
+
+    } catch (err) {
+        console.error("Gagal membuka webcam:", err);
+        alert("Gagal mengakses kamera: " + (err.message || err.name));
+    }
+}
+
+function stopWebcam() {
+    if (autoScanTimer) {
+        clearInterval(autoScanTimer);
+        autoScanTimer = null;
+    }
+    if (webcamStream) {
+        webcamStream.getTracks().forEach(track => track.stop());
+        webcamStream = null;
+    }
+    if (edgeAnimId) {
+        cancelAnimationFrame(edgeAnimId);
+        edgeAnimId = null;
+    }
+    if (edgeOverlayCanvas) {
+        const ovCtx = edgeOverlayCanvas.getContext('2d');
+        ovCtx.clearRect(0, 0, edgeOverlayCanvas.width, edgeOverlayCanvas.height);
+    }
+    webcamVideo.srcObject = null;
+    btnWebcamText.innerText = "Mulai Kamera";
+    btnToggleWebcamBtn.classList.replace('btn-danger', 'btn-emerald');
+    autoScanBadge.className = "badge bg-secondary rounded-pill small";
+    autoScanBadge.textContent = "Kamera Nonaktif";
+    isScanning = false;
+}
+
+function toggleWebcam() {
+    if (webcamStream) stopWebcam();
+    else startWebcam();
+}
+
+async function captureWebcamBlob() {
+    if (!webcamVideo || !webcamStream) return null;
+    const targetWidth = Math.round(webcamVideo.clientWidth || 640);
+    const targetHeight = Math.round(webcamVideo.clientHeight || 380);
+
+    webcamCanvas.width = targetWidth;
+    webcamCanvas.height = targetHeight;
+    const ctx = webcamCanvas.getContext('2d');
+
+    // Mirror image horizontally to match live preview
+    ctx.save();
+    ctx.translate(targetWidth, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(webcamVideo, 0, 0, targetWidth, targetHeight);
+    ctx.restore();
+
+    return new Promise(resolve => webcamCanvas.toBlob(resolve, 'image/jpeg', 0.95));
+}
+
+async function autoScanFrame() {
+    if (!webcamStream || isScanning) return;
+    isScanning = true;
+
+    try {
+        const blob = await captureWebcamBlob();
+        if (!blob) { isScanning = false; return; }
+
+        const formData = new FormData();
+        formData.append('gambar', blob, 'webcam_scan.jpg');
+
+        const res = await fetch('/api/conveyor/predict', { method: 'POST', body: formData });
+        const json = await res.json();
+
+        if (json.success && json.data) {
+            scanCount++;
+            liveScanCount.textContent = scanCount;
+            displayClassificationResult(json.data);
+            loadHistory();
+        }
+    } catch (err) {
+        console.error("Auto scan error:", err);
+    } finally {
+        isScanning = false;
+    }
+}
+
+function manualCaptureFrame() {
+    if (!webcamStream) {
+        alert("Nyalakan webcam terlebih dahulu.");
+        return;
+    }
+    autoScanFrame();
+}
+
+// ─────────────────────────────────────────────────────────────
+// 3. DISPLAY RESULTS
+// ─────────────────────────────────────────────────────────────
+function displayClassificationResult(data) {
+    document.getElementById('placeholderSection').classList.add('d-none');
+    document.getElementById('resultSection').classList.remove('d-none');
+
+    const label = (data.hasil_klasifikasi || 'unknown').toLowerCase();
+    const style = CLASS_STYLES[label] || CLASS_STYLES['unknown'];
+    const conf = data.confidence_score || 0;
+
+    // Header card
+    const header = document.getElementById('resultHeader');
+    header.className = 'result-header ' + style.bg;
+    document.getElementById('resultLabel').textContent = style.label;
+    document.getElementById('resultQuality').textContent = data.kualitas || style.quality;
+
+    // Stats
+    document.getElementById('resultConfidence').textContent = (conf * 100).toFixed(1) + '%';
+    const edge = data.garis_tepi;
+    document.getElementById('resultEdge').innerHTML = (edge && edge.terdeteksi)
+        ? '<span class="text-success"><i class="bi bi-check-circle-fill"></i> Terdeteksi</span>'
+        : '<span class="text-secondary"><i class="bi bi-dash-circle"></i> Tidak</span>';
+    document.getElementById('resultTimestamp').textContent = data.timestamp_display
+        ? data.timestamp_display.split(' ')[1] || data.timestamp_display
+        : new Date().toLocaleTimeString('id-ID');
+
+    // Probabilitas 3 kelas
+    const probs = data.probabilities || {};
+    setBar('Wrapper', probs.wrapper || 0);
+    setBar('Binder', probs.binder || 0);
+    setBar('Filler', probs.filler || 0);
+
+    // Multi-label detail
+    if (probs.multilabel) {
+        const section = document.getElementById('multilabelSection');
+        section.classList.remove('d-none');
+        const grid = document.getElementById('multilabelGrid');
+        grid.innerHTML = '';
+        const labelMap = {
+            'Low': '🔻 Low',
+            'Binder_Medium': '🟡 Binder (Med)',
+            'Filler': '🔴 Filler',
+            'Quality': '✨ Quality',
+            'Wrapper_High': '🟢 Wrapper (High)'
+        };
+        for (const [key, val] of Object.entries(probs.multilabel)) {
+            const active = val > 0.5;
+            const chip = document.createElement('div');
+            chip.className = 'multilabel-chip ' + (active ? 'active' : 'inactive');
+            chip.innerHTML = `<div>${labelMap[key] || key}</div><div class="fs-5">${(val * 100).toFixed(1)}%</div>`;
+            grid.appendChild(chip);
+        }
+    }
+
+    // Canny edge details
+    if (edge) {
+        const edgeSection = document.getElementById('edgeSection');
+        edgeSection.classList.remove('d-none');
+        document.getElementById('edgeDetail').innerHTML = `
+            Jumlah Kontur: <strong>${edge.jumlah_kontur || 0}</strong> &nbsp;|&nbsp;
+            Rasio Area Daun: <strong>${((edge.rasio_area_daun || 0) * 100).toFixed(1)}%</strong>
+        `;
+    }
+
+    // Annotated image
+    if (data.gambar_url) {
+        const annotatedSection = document.getElementById('annotatedSection');
+        annotatedSection.classList.remove('d-none');
+        document.getElementById('annotatedImg').src = data.gambar_url;
+    }
+}
+
+function setBar(name, val) {
+    const pct = (val * 100).toFixed(1);
+    document.getElementById('prob' + name).textContent = pct + '%';
+    document.getElementById('bar' + name).style.width = pct + '%';
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4. RIWAYAT KLASIFIKASI TERAKHIR
+// ─────────────────────────────────────────────────────────────
+async function loadHistory() {
+    try {
+        const res = await fetch('/api/conveyor/history?limit=10');
+        const json = await res.json();
+        const tbody = document.getElementById('historyBody');
+
+        if (!json.success || !json.data || json.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Belum ada riwayat klasifikasi tersimpan</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = json.data.map(r => {
+            const badge = (r.hasil_klasifikasi || 'unknown').toLowerCase();
+            const conf = r.confidence_percent ? r.confidence_percent.toFixed(1) : ((r.confidence_score || 0) * 100).toFixed(1);
+            const thumbHtml = r.gambar_url
+                ? `<img src="${r.gambar_url}" style="height:36px;width:36px;object-fit:cover;border-radius:6px;" loading="lazy">`
+                : '<span class="text-muted">—</span>';
+            return `<tr>
+                <td class="ps-3 small text-secondary">${r.timestamp_display || '—'}</td>
+                <td><span class="history-badge ${badge}">${badge}</span></td>
+                <td class="fw-semibold">${conf}%</td>
+                <td class="pe-3 text-end">${thumbHtml}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        console.error('Gagal memuat riwayat:', e);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadHistory);
+</script>
+{% endblock %}

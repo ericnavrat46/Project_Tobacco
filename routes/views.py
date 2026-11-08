@@ -6,6 +6,10 @@ views_bp = Blueprint('views', __name__)
 def dashboard():
     return render_template('dashboard.html')
 
+@views_bp.route('/klasifikasi')
+def klasifikasi_page():
+    return render_template('klasifikasi.html')
+
 @views_bp.route('/export')
 def export_page():
     return render_template('export.html')
