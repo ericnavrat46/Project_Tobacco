@@ -14,6 +14,118 @@ ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp'}
 def _allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
+
+def _check_red_conveyor_dominance(img_cv):
+    """
+    Mendeteksi apakah frame didominasi oleh selendang / talang karet konveyor berwarna merah.
+    Menghitung persentase warna merah murni (Red pekat, Green & Blue rendah).
+    Return: (is_red_belt: bool, red_ratio: float, leaf_crop: img)
+    """
+    try:
+        import cv2
+        import numpy as np
+
+        if img_cv is None:
+            return False, 0.0
+
+        # Konversi ke HSV
+        hsv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2HSV)
+        
+        # Masking warna merah murni (talang / selendang karet)
+        # Merah pada HSV berada di dua ujung: 0-8 dan 170-180 dengan saturasi tinggi
+        mask_red1 = cv2.inRange(hsv, np.array([0, 70, 50]), np.array([8, 255, 255]))
+        mask_red2 = cv2.inRange(hsv, np.array([170, 70, 50]), np.array([180, 255, 255]))
+        red_mask = mask_red1 | mask_red2
+        
+        total_pixels = img_cv.shape[0] * img_cv.shape[1]
+        red_pixels = cv2.countNonZero(red_mask)
+        red_ratio = red_pixels / total_pixels
+
+        # Cek juga dari kanal RGB langsung: R dominan jauh dibanding G dan B
+        b, g, r = cv2.split(img_cv)
+        red_dominant = (r > 100) & (r > (g.astype(np.int32) + 40)) & (r > (b.astype(np.int32) + 40))
+        red_dominant_ratio = np.sum(red_dominant) / total_pixels
+
+        # Jika lebih dari 35% frame adalah warna merah selendang dan tidak ada daun signifikan
+        is_red_belt = (red_ratio > 0.35) or (red_dominant_ratio > 0.40)
+        return is_red_belt, max(red_ratio, red_dominant_ratio)
+    except Exception:
+        return False, 0.0
+
+def _detect_leaf_contour_and_edges(img_cv):
+    """
+    Mendeteksi garis tepi daun tembakau menggunakan Masking Warna HSV + Canny Edge.
+    Menggambar garis kontur neon hijau di sekeliling tepi luar daun.
+    Return: (img_annotated, edge_detected: bool, leaf_contour_count: int, leaf_area_ratio: float)
+    """
+    try:
+        import cv2
+        import numpy as np
+
+        if img_cv is None:
+            return img_cv, False, 0, 0.0
+
+        h, w = img_cv.shape[:2]
+        total_pixels = h * w
+
+        # 1. Konversi ke ruang warna HSV
+        hsv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2HSV)
+
+        # 2. Masking Khusus Daun Tembakau KERING (Cokelat Tua, Curing Cokelat-Kuning)
+        # Menghapus warna merah talang karet konveyor (Hue 0-8 dan 170-180)
+        mask_brown = cv2.inRange(hsv, np.array([9, 45, 35]), np.array([24, 255, 215]))     # Cokelat tembakau murni
+        mask_yellow = cv2.inRange(hsv, np.array([16, 45, 40]), np.array([32, 255, 235]))   # Kuning kering / curing
+        
+        # Masking eksklusi merah selendang karet
+        mask_red_belt1 = cv2.inRange(hsv, np.array([0, 60, 40]), np.array([8, 255, 255]))
+        mask_red_belt2 = cv2.inRange(hsv, np.array([170, 60, 40]), np.array([180, 255, 255]))
+        red_belt_mask = mask_red_belt1 | mask_red_belt2
+
+        leaf_mask = (mask_brown | mask_yellow) & (~red_belt_mask)
+
+        # 3. Operasi Morfologi (menghilangkan bintik noise dan menutup lubang internal)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        leaf_mask = cv2.morphologyEx(leaf_mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+        leaf_mask = cv2.morphologyEx(leaf_mask, cv2.MORPH_OPEN, kernel, iterations=1)
+
+        # 4. Blur dan Canny Edge Detection pada hasil Masking
+        blurred = cv2.GaussianBlur(leaf_mask, (5, 5), 0)
+        edges = cv2.Canny(blurred, 40, 120)
+
+        # 5. Temukan kontur daun
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        annotated = img_cv.copy()
+        valid_contours = []
+        total_leaf_area = 0.0
+
+        # Filter kontur dengan luas minimal (menghindari deteksi debu/noise)
+        min_area = total_pixels * 0.015  # minimal 1.5% dari frame
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area >= min_area:
+                valid_contours.append(c)
+                total_leaf_area += area
+
+        leaf_area_ratio = round(total_leaf_area / total_pixels, 4) if total_pixels > 0 else 0.0
+        edge_detected = len(valid_contours) > 0
+
+        if edge_detected:
+            # Gambar garis tepi neon emerald (BGR: 0, 255, 128) tebal 3px
+            cv2.drawContours(annotated, valid_contours, -1, (0, 255, 100), 3)
+
+            # Gambar titik puncak kontur terbesar dan bounding box tipis
+            largest_contour = max(valid_contours, key=cv2.contourArea)
+            bx, by, bw, bh = cv2.boundingRect(largest_contour)
+            cv2.rectangle(annotated, (bx, by), (bx + bw, by + bh), (255, 180, 0), 2)
+            cv2.putText(annotated, f"TEPI DAUN ({int(leaf_area_ratio*100)}%)", (bx, max(25, by - 8)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 100), 2, cv2.LINE_AA)
+
+        return annotated, edge_detected, len(valid_contours), leaf_area_ratio
+    except Exception as e:
+        return img_cv, False, 0, 0.0
+
 def _save_image(file_obj):
     """
     Simpan file gambar ke filesystem.
@@ -410,7 +522,16 @@ def predict_conveyor():
                 "message": "File gambar kosong atau rusak"
             }), 400
 
-        # 2. Simpan gambar ke filesystem secara aman
+        # 2. Decode gambar langsung dari memori RAM
+        import cv2
+        import numpy as np
+        np_arr = np.frombuffer(img_bytes, np.uint8)
+        img_cv = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+        # 3. Terapkan Masking Warna + Canny Edge Detection untuk Mendeteksi Garis Tepi Daun
+        annotated_img, has_edge, contour_count, leaf_ratio = _detect_leaf_contour_and_edges(img_cv)
+
+        # 4. Simpan gambar beranotasi garis tepi ke folder uploads/daun
         gambar_path = None
         try:
             today = datetime.now()
@@ -427,22 +548,48 @@ def predict_conveyor():
 
             filename = f"leaf_{uuid.uuid4().hex[:8]}.{ext}"
             file_dest = os.path.join(upload_dir, filename)
-            with open(file_dest, 'wb') as f_out:
-                f_out.write(img_bytes)
+
+            # Jika berhasil deteksi tepi, simpan gambar yang sudah bergaris tepi
+            if annotated_img is not None:
+                cv2.imwrite(file_dest, annotated_img, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            else:
+                with open(file_dest, 'wb') as f_out:
+                    f_out.write(img_bytes)
+
             gambar_path = f"uploads/daun/{year}/{month}/{day}/{filename}"
-            print(f"[CONVEYOR CAMERA] Gambar daun berhasil disimpan: {gambar_path}")
+            print(f"[CONVEYOR CAMERA] Gambar daun (Canny Edge) berhasil disimpan: {gambar_path}")
         except Exception as save_err:
             current_app.logger.warning(f"Gagal simpan arsip gambar ke disk: {save_err}")
-
-        # 3. Decode gambar langsung dari memori RAM (tanpa tunggu baca ulang disk)
-        import cv2
-        import numpy as np
-        np_arr = np.frombuffer(img_bytes, np.uint8)
-        img_cv = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
         hasil = None
         confidence = 0.0
         probabilities = {}
+
+        # ================================================================
+        # 0. CEK EKSKLUSI SELENDANG / TALANG KARET MERAH KONVEYOR
+        # ================================================================
+        is_red_belt, red_pct = _check_red_conveyor_dominance(img_cv)
+        
+        # Jika kamera hanya melihat selendang merah kosong (tanpa kontur daun tembakau terdeteksi)
+        if is_red_belt and not has_edge:
+            return jsonify({
+                "success": True,
+                "data": {
+                    "id": 0,
+                    "hasil_klasifikasi": "unknown",
+                    "confidence_score": 0.0,
+                    "confidence_percent": 0.0,
+                    "gambar_url": f"/static/{gambar_path}" if gambar_path else None,
+                    "has_vector": False,
+                    "kualitas": "Selendang Konveyor (Bukan Daun)",
+                    "message": "Terdeteksi selendang merah konveyor. Tidak ada daun tembakau.",
+                    "probabilities": {"filler": 0.0, "binder": 0.0, "wrapper": 0.0},
+                    "garis_tepi": {"terdeteksi": False, "jumlah_kontur": 0, "rasio_area_daun": 0.0},
+                    "timestamp_display": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "db_status": "Dilewati (Bukan Daun)"
+                },
+                "message": "Selendang konveyor merah terdeteksi (Bukan Daun Tembakau)."
+            }), 200
 
         # ================================================================
         # 1. LANGSUNG EKSEKUSI MODEL UTAMA (MobileNetV2 Deep Learning)
@@ -539,6 +686,11 @@ def predict_conveyor():
 
         response_data['kualitas'] = quality_map.get(hasil, hasil.capitalize())
         response_data['probabilities'] = probabilities
+        response_data['garis_tepi'] = {
+            'terdeteksi': has_edge,
+            'jumlah_kontur': contour_count,
+            'rasio_area_daun': leaf_ratio
+        }
 
         return jsonify({
             "success": True,

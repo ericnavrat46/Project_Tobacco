@@ -276,78 +276,76 @@
                 <!-- Wadah Live Webcam Browser (Default tersembunyi) -->
                 <div id="webcamContainer" class="d-none mb-3 p-3 rounded-2 border"
                     style="background-color: var(--bg-surface-soft);">
-                    <div class="d-flex gap-3 align-items-stretch">
+                    <div class="d-flex flex-column gap-3">
 
-                        <!-- Kamera: landscape penuh -->
-                        <div class="position-relative flex-grow-1" style="min-width: 0;">
-                            <div class="position-relative w-100" style="overflow: hidden; border-radius: 0.5rem;">
-                                <video id="webcamVideo" autoplay playsinline muted class="rounded-2 d-block w-100"
-                                    style="height: 400px; object-fit: cover; background: #000; border: 1px solid var(--border-color-strong); transform: scaleX(-1);">
-                                </video>
-                                <!-- Guide Box landscape -->
-                                <div class="position-absolute top-50 start-50 translate-middle rounded-2"
-                                    style="width: 94%; height: 86%; pointer-events: none; border: 2px dashed rgba(217,119,6,0.95); box-shadow: 0 0 0 9999px rgba(0,0,0,0.38);">
-                                </div>
-                                <!-- Auto-scan indicator pojok kiri atas -->
-                                <div class="position-absolute top-0 start-0 m-2">
-                                    <span id="autoScanIndicator" class="badge bg-danger rounded-pill shadow-sm"
-                                        style="font-size: 0.65rem;">
-                                        <i class="bi bi-record-circle me-1"></i>AUTO-SCAN AKTIF
-                                    </span>
-                                </div>
+                        <!-- 1. Kamera: Mengisi 100% Lebar Penuh Box Card -->
+                        <div class="position-relative w-100" style="overflow: hidden; border-radius: 0.5rem;">
+                            <video id="webcamVideo" autoplay playsinline muted class="rounded-2 d-block w-100"
+                                style="height: 420px; object-fit: cover; background: #000; border: 1px solid var(--border-color-strong); transform: scaleX(-1);">
+                            </video>
+                            <!-- Canvas Overlay untuk Tampilan Garis Tepi Daun Real-Time -->
+                            <canvas id="edgeOverlayCanvas" class="position-absolute top-0 start-0 w-100 h-100"
+                                style="pointer-events: none; object-fit: cover;"></canvas>
+                            <!-- Guide Box landscape -->
+                            <div class="position-absolute top-50 start-50 translate-middle rounded-2"
+                                style="width: 95%; height: 88%; pointer-events: none; border: 2px dashed rgba(217,119,6,0.95); box-shadow: 0 0 0 9999px rgba(0,0,0,0.38);">
                             </div>
-                            <canvas id="webcamCanvas" class="d-none"></canvas>
+                            <!-- Auto-scan indicator pojok kiri atas -->
+                            <div class="position-absolute top-0 start-0 m-2 d-flex gap-2 align-items-center">
+                                <span id="autoScanIndicator" class="badge bg-danger rounded-pill shadow-sm"
+                                    style="font-size: 0.68rem;">
+                                    <i class="bi bi-record-circle me-1"></i>AUTO-SCAN AKTIF
+                                </span>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill shadow-sm" style="font-size: 0.65rem;">
+                                    <i class="bi bi-bounding-box me-1"></i>CANNY EDGE AKTIF
+                                </span>
+                            </div>
                         </div>
+                        <canvas id="webcamCanvas" class="d-none"></canvas>
 
-                        <!-- Panel hasil live (compact, di samping kamera) -->
-                        <div style="width: 190px; flex-shrink: 0;" class="d-flex flex-column gap-2">
-                            <small class="text-secondary fw-semibold" style="font-size: 0.72rem;">
-                                <i class="bi bi-broadcast text-success me-1"></i>Hasil Live
-                            </small>
-
-                            <!-- Live Result Card -->
-                            <div id="liveResultCard" class="rounded-3 p-2 flex-grow-1 shadow-sm"
-                                style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); transition: all 0.4s ease;">
-                                <div class="text-center h-100 d-flex flex-column justify-content-center"
-                                    id="liveResultPlaceholder">
-                                    <div class="spinner-grow spinner-grow-sm text-success mb-1" role="status"></div>
-                                    <p class="mb-0" style="color: #94a3b8; font-size: 0.7rem;">Menunggu deteksi...</p>
-                                </div>
-                                <div class="d-none text-center" id="liveResultContent">
-                                    <div class="mb-1">
-                                        <span id="liveResultBadge" class="badge rounded-pill px-3 py-1 shadow"
-                                            style="font-size: 0.75rem;">-</span>
-                                    </div>
-                                    <div class="mb-2">
-                                        <span id="liveResultQuality" class="fw-bold text-white"
-                                            style="font-size: 0.8rem;">-</span>
-                                    </div>
-                                    <div class="mb-1">
-                                        <div class="progress mb-1"
-                                            style="height: 6px; background: rgba(255,255,255,0.1);">
-                                            <div id="liveResultBar" class="progress-bar bg-success"
-                                                style="width: 0%; transition: width 0.5s ease;"></div>
+                        <!-- 2. Panel Hasil Live Preview: Berada di Bawah Kamera (Full Horizontal Banner) -->
+                        <div class="p-2 rounded-3 border" style="background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.08) !important;">
+                            <div class="row align-items-center g-2">
+                                
+                                <!-- Status Hasil Deteksi -->
+                                <div class="col-md-7">
+                                    <div id="liveResultCard" class="rounded-2 p-2 px-3 shadow-sm d-flex align-items-center justify-content-between"
+                                        style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); min-height: 48px; transition: all 0.4s ease;">
+                                        
+                                        <div id="liveResultPlaceholder" class="w-100 d-flex align-items-center justify-content-center gap-2">
+                                            <div class="spinner-grow spinner-grow-sm text-success" role="status"></div>
+                                            <span class="small mb-0 text-secondary" style="font-size: 0.78rem;">Menunggu daun tiba di area pemindaian konveyor...</span>
                                         </div>
-                                        <span id="liveResultConf" class="fw-bold text-white"
-                                            style="font-size: 0.72rem;">0%</span>
+
+                                        <div id="liveResultContent" class="d-none w-100 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span id="liveResultBadge" class="badge rounded-pill px-3 py-1 shadow" style="font-size: 0.8rem;">-</span>
+                                                <span id="liveResultQuality" class="fw-bold text-white" style="font-size: 0.85rem;">-</span>
+                                            </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <small style="color: #94a3b8; font-size: 0.75rem;">Akurasi:</small>
+                                                <div class="progress" style="height: 8px; width: 110px; background: rgba(255,255,255,0.1);">
+                                                    <div id="liveResultBar" class="progress-bar bg-success" style="width: 0%; transition: width 0.5s ease;"></div>
+                                                </div>
+                                                <span id="liveResultConf" class="fw-bold text-white" style="font-size: 0.78rem;">0%</span>
+                                            </div>
+                                        </div>
+
                                     </div>
                                 </div>
-                            </div>
 
-                            <!-- Scan counter -->
-                            <div class="d-flex justify-content-between align-items-center rounded-2 px-2 py-1"
-                                style="background: rgba(255,255,255,0.05);">
-                                <small style="color: #94a3b8; font-size: 0.68rem;"><i
-                                        class="bi bi-bar-chart me-1"></i>Scan:</small>
-                                <span id="liveScanCount" class="badge bg-primary rounded-pill"
-                                    style="font-size: 0.68rem;">0</span>
-                            </div>
+                                <!-- Scan Counter & Tombol Matikan -->
+                                <div class="col-md-5 d-flex align-items-center gap-2">
+                                    <div class="d-flex align-items-center justify-content-between px-3 py-2 rounded-2 flex-grow-1" style="background: rgba(255,255,255,0.06); height: 48px;">
+                                        <small style="color: #94a3b8; font-size: 0.75rem;"><i class="bi bi-bar-chart me-1"></i>Total Scan:</small>
+                                        <span id="liveScanCount" class="badge bg-primary rounded-pill px-2 py-1" style="font-size: 0.78rem;">0</span>
+                                    </div>
+                                    <button type="button" id="btnStopWebcam" class="btn btn-outline-danger btn-sm px-3" style="font-size: 0.78rem; height: 48px; white-space: nowrap;">
+                                        <i class="bi bi-stop-circle me-1"></i>Matikan Kamera
+                                    </button>
+                                </div>
 
-                            <!-- Hanya tombol Matikan -->
-                            <button type="button" id="btnStopWebcam" class="btn btn-outline-danger btn-sm w-100"
-                                style="font-size: 0.75rem;">
-                                <i class="bi bi-stop-circle me-1"></i>Matikan Kamera
-                            </button>
+                            </div>
                         </div>
 
                     </div>
@@ -395,6 +393,126 @@
             const webcamContainer = document.getElementById('webcamContainer');
             const webcamVideo = document.getElementById('webcamVideo');
             const webcamCanvas = document.getElementById('webcamCanvas');
+            const edgeOverlayCanvas = document.getElementById('edgeOverlayCanvas');
+            let edgeAnimId = null;
+
+            // Algoritma Masking Warna Daun + Canny/Sobel Contour Detection Real-time pada Layar Browser
+            function renderLiveLeafEdges() {
+                if (!webcamStream || webcamVideo.paused || webcamVideo.ended) return;
+
+                const displayW = webcamVideo.clientWidth;
+                const displayH = webcamVideo.clientHeight;
+                if (displayW > 0 && displayH > 0) {
+                    if (edgeOverlayCanvas.width !== displayW || edgeOverlayCanvas.height !== displayH) {
+                        edgeOverlayCanvas.width = displayW;
+                        edgeOverlayCanvas.height = displayH;
+                    }
+                    const ovCtx = edgeOverlayCanvas.getContext('2d');
+                    ovCtx.clearRect(0, 0, displayW, displayH);
+
+                    // Skala pemrosesan optimal untuk 30fps halus
+                    const scaleFactor = 2; // resolusi separuh agar garis kontur presisi
+                    const procW = Math.floor(displayW / scaleFactor);
+                    const procH = Math.floor(displayH / scaleFactor);
+
+                    if (!window._edgeProcCanvas) {
+                        window._edgeProcCanvas = document.createElement('canvas');
+                    }
+                    if (window._edgeProcCanvas.width !== procW || window._edgeProcCanvas.height !== procH) {
+                        window._edgeProcCanvas.width = procW;
+                        window._edgeProcCanvas.height = procH;
+                    }
+                    const pCtx = window._edgeProcCanvas.getContext('2d', { willReadFrequently: true });
+
+                    // Gambar frame video cermin ke canvas pemrosesan
+                    pCtx.save();
+                    pCtx.translate(procW, 0);
+                    pCtx.scale(-1, 1);
+                    pCtx.drawImage(webcamVideo, 0, 0, procW, procH);
+                    pCtx.restore();
+
+                    const imgData = pCtx.getImageData(0, 0, procW, procH);
+                    const data = imgData.data;
+                    const totalPixels = procW * procH;
+
+                    // 1. Masking Khusus Daun Tembakau KERING (Cokelat Tua, Cokelat Keemasan, Kuning Kering)
+                    // Mengabaikan daun hijau & membedakan secara ketat dari warna kulit tangan
+                    const mask = new Uint8Array(totalPixels);
+                    let leafPixelCount = 0;
+
+                    for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+                        const r = data[i], g = data[i+1], b = data[i+2];
+
+                        // Karakteristik Daun Tembakau Kering vs Selendang Merah Konveyor:
+                        // 1. Selendang karet merah memiliki R tinggi sekali, G sangat rendah, dan (R - G) sangat besar (> 70)
+                        const isRedBelt = (r > 110) && (r > g + 65) && (r > b + 60);
+
+                        // 2. Daun tembakau kering memiliki R dan G seimbang kecokelatan ((R - G) <= 50)
+                        const isDriedTobacco = !isRedBelt &&
+                                               (r >= 50 && r <= 220) &&
+                                               (g >= 40 && g <= 185) &&
+                                               (b <= 135) &&
+                                               (r >= g) &&
+                                               (g > b + 15) &&
+                                               (r > b + 25) &&
+                                               ((r - g) <= 50); // Mencegah selendang merah & kulit tangan
+
+                        if (isDriedTobacco) {
+                            mask[p] = 1;
+                            leafPixelCount++;
+                        } else {
+                            mask[p] = 0;
+                        }
+                    }
+
+                    // Hanya gambar jika ada area daun yang masuk akal (> 1% dari layar)
+                    if (leafPixelCount > totalPixels * 0.01) {
+                        // 2. Morphology Closing sederhana (menghubungkan titik daun yang bolong)
+                        const cleanMask = new Uint8Array(totalPixels);
+                        for (let y = 1; y < procH - 1; y++) {
+                            for (let x = 1; x < procW - 1; x++) {
+                                const idx = y * procW + x;
+                                if (mask[idx] === 1) {
+                                    cleanMask[idx] = 1;
+                                } else {
+                                    // Jika dikelilingi banyak pixel daun, tutup lubangnya
+                                    const neighbors = mask[idx-1] + mask[idx+1] + mask[idx-procW] + mask[idx+procW];
+                                    if (neighbors >= 3) cleanMask[idx] = 1;
+                                }
+                            }
+                        }
+
+                        // 3. Deteksi Garis Tepi Luar (Contour Boundary)
+                        ovCtx.save();
+                        ovCtx.lineWidth = 3;
+                        ovCtx.strokeStyle = '#00FF66'; // Neon Emerald
+                        ovCtx.shadowColor = '#00FF66';
+                        ovCtx.shadowBlur = 8;
+                        ovCtx.beginPath();
+
+                        const scale = scaleFactor;
+                        for (let y = 1; y < procH - 1; y++) {
+                            for (let x = 1; x < procW - 1; x++) {
+                                const idx = y * procW + x;
+                                if (cleanMask[idx] === 1) {
+                                    // Tepi adalah pixel daun yang bertetangga dengan latar belakang (0)
+                                    const isEdge = (cleanMask[idx-1] === 0 || cleanMask[idx+1] === 0 ||
+                                                    cleanMask[idx-procW] === 0 || cleanMask[idx+procW] === 0);
+                                    if (isEdge) {
+                                        const px = x * scale;
+                                        const py = y * scale;
+                                        ovCtx.rect(px, py, scale, scale);
+                                    }
+                                }
+                            }
+                        }
+                        ovCtx.stroke();
+                        ovCtx.restore();
+                    }
+                }
+
+                edgeAnimId = requestAnimationFrame(renderLiveLeafEdges);
+            }
 
             // Elemen Live Result
             const liveResultCard = document.getElementById('liveResultCard');
@@ -480,10 +598,34 @@
                 liveResultCard.style.transform = 'scale(1.02)';
                 setTimeout(() => { liveResultCard.style.transform = 'scale(1)'; }, 200);
 
-                // Update scan count (hanya hitung jika bukan unknown)
-                if (cls !== 'unknown') {
+                if (cls === 'unknown') {
+                    // JIKA TIDAK DIKENALI (Selendang merah kosong / Bukan daun):
+                    // JANGAN ADA JEDA MENUNGGU! Langsung reset status siaga dan scan cepat kembali
+                    setTimeout(() => {
+                        if (webcamStream && !isScanning) {
+                            liveResultPlaceholder.classList.remove('d-none');
+                            liveResultContent.classList.add('d-none');
+                            const pText = liveResultPlaceholder.querySelector('span');
+                            if (pText) pText.textContent = "Mendeteksi area konveyor...";
+                            
+                            // Segera scan ulang tanpa menunggu timer siklus servo 6.5s
+                            autoScanFrame();
+                        }
+                    }, 800);
+                } else {
+                    // JIKA DAUN VALID TERDETEKSI (Wrapper / Binder / Filler):
+                    // Hitung total scan & beri jeda waktu tempuh menuju servo
                     scanCount++;
                     liveScanCount.textContent = scanCount;
+
+                    setTimeout(() => {
+                        if (webcamStream && !isScanning) {
+                            liveResultPlaceholder.classList.remove('d-none');
+                            liveResultContent.classList.add('d-none');
+                            const pText = liveResultPlaceholder.querySelector('span');
+                            if (pText) pText.textContent = "Servo selesai memilah. Menunggu daun berikutnya...";
+                        }
+                    }, 5500);
                 }
 
                 // Juga update panel hasil upload (bawah)
@@ -652,6 +794,8 @@
 
                     webcamContainer.classList.remove('d-none');
                     btnWebcamText.innerText = "Matikan Kamera";
+                    if (edgeAnimId) cancelAnimationFrame(edgeAnimId);
+                    edgeAnimId = requestAnimationFrame(renderLiveLeafEdges);
                     btnToggleWebcam.classList.replace('btn-emerald', 'btn-danger');
 
                     // Reset state
@@ -661,16 +805,23 @@
                     liveResultContent.classList.add('d-none');
                     const placeholderText = liveResultPlaceholder.querySelector('p');
                     if (placeholderText) {
-                        placeholderText.textContent = "Kamera aktif. Memindai daun tembakau...";
+                        placeholderText.textContent = "Kamera sinkron dengan konveyor. Menunggu daun...";
                     }
 
-                    // Mulai auto-scan tepat 1.5 - 2 detik setelah kamera aktif
+                    // Sinkronisasi dengan Siklus Mesin Konveyor Arduino:
+                    // 1. Fase 1: Daun tiba & konveyor berhenti 1 detik (Scan dilakukan di sini)
+                    // 2. Fase 2: Konveyor jalan membawa daun ke servo (4 detik)
+                    // 3. Fase 3: Servo menahan palang 180 derajat (1 detik)
+                    // 4. Fase 4: Servo turun ke 0 derajat (0.5 detik)
+                    // Total siklus = 6.5 detik. Scan berikutnya HANYA berjalan setelah servo selesai beraksi!
+                    const ARDUINO_CYCLE_INTERVAL_MS = 6500; 
+
                     setTimeout(() => {
                         if (webcamStream) {
-                            autoScanFrame(); // Scan pertama segera pada detik ke-1.5 ~ 2
-                            autoScanTimer = setInterval(autoScanFrame, 2000); // Scan rutin setiap 2 detik
+                            autoScanFrame(); // Scan daun pertama saat konveyor siap
+                            autoScanTimer = setInterval(autoScanFrame, ARDUINO_CYCLE_INTERVAL_MS);
                         }
-                    }, 1500);
+                    }, 1000);
 
                 } catch (err) {
                     console.error("Gagal membuka webcam:", err);
@@ -694,6 +845,14 @@
                 if (webcamStream) {
                     webcamStream.getTracks().forEach(track => track.stop());
                     webcamStream = null;
+                }
+                if (edgeAnimId) {
+                    cancelAnimationFrame(edgeAnimId);
+                    edgeAnimId = null;
+                }
+                if (edgeOverlayCanvas) {
+                    const ovCtx = edgeOverlayCanvas.getContext('2d');
+                    ovCtx.clearRect(0, 0, edgeOverlayCanvas.width, edgeOverlayCanvas.height);
                 }
                 webcamVideo.srcObject = null;
                 webcamContainer.classList.add('d-none');

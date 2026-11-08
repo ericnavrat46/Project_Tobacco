@@ -1,182 +1,220 @@
 /*
   ===================================================================================
-  TobaccoGuard IoT - Firmware Klasifikasi Daun Conveyor (Wemos D1 Mini / ESP8266)
+  TobaccoGuard IoT - Firmware Conveyor & Leaf Sorter (Wemos D1 Mini / ESP8266)
   ===================================================================================
-  Deskripsi:
-  Mendeteksi daun tembakau yang lewat pada belt conveyor menggunakan sensor IR Proximity,
-  melakukan inferensi klasifikasi mutu daun (Wrapper, Binder, Filler), lalu mengirimkan
-  hasilnya secara otomatis ke server Flask melalui REST API JSON.
-
-  Komponen Hardware:
-  - Mikrokontroler : Wemos D1 Mini (ESP8266) / ESP32
-  - Sensor Deteksi : Sensor Infrared Obstacle / Proximity (Pin D5 / GPIO 14)
-  - Indikator LED  : Built-in LED Wemos (Pin D4 / GPIO 2)
-
-  Kategori Mutu Daun Tembakau:
-  1. "wrapper" : Daun pembungkus luar cerutu (mutu tertinggi, permukaan halus, elastis)
-  2. "binder"  : Daun pengikat tengah (mutu sedang, elastisitas cukup)
-  3. "filler"  : Daun pengisi dalam/rajangan (mutu standar)
-
-  Library yang Dibutuhkan:
-  1. "ESP8266WiFi" & "ESP8266HTTPClient" (Built-in board ESP8266)
-  2. "ArduinoJson" by Benoit Blanchon (versi 6 atau 7)
+  Konfigurasi:
+  - WiFi SSID        : MUTIARA
+  - WiFi Password    : M4m4p4p4
+  - Server Flask     : http://192.168.18.7:5000/api/conveyor
+  - IR Sensor Pin    : D3 (GPIO 0)
+  - Stepper Step Pin : D5 (GPIO 14)
+  - Stepper Dir Pin  : D6 (GPIO 12)
+  - Servo Pin        : D8 (GPIO 15)
   ===================================================================================
 */
 
-#if defined(ESP8266)
-  #include <ESP8266WiFi.h>
-  #include <ESP8266HTTPClient.h>
-  #include <WiFiClient.h>
-  #define SENSOR_IR_PIN  D5   // GPIO 14
-  #define LED_PIN        D4   // Built-in LED (Active LOW pada Wemos)
-#elif defined(ESP32)
-  #include <WiFi.h>
-  #include <HTTPClient.h>
-  #define SENSOR_IR_PIN  14   // GPIO 14
-  #define LED_PIN        2    // GPIO 2
-#endif
-
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
 #include <ArduinoJson.h>
+#include <Servo.h>
 
-// =================== 1. KONFIGURASI JARINGAN & SERVER ===================
-const char* WIFI_SSID     = "NAMA_WIFI_ANDA";         // Ganti dengan SSID WiFi Anda
-const char* WIFI_PASSWORD = "PASSWORD_WIFI_ANDA";     // Ganti dengan Password WiFi Anda
+Servo servoPemilah;
 
-// Masukkan URL API Conveyor Server Flask Anda
-const char* SERVER_URL    = "http://192.168.1.8:5000/api/conveyor";
+// --- KONFIGURASI JARINGAN & SERVER FLASK ---
+const char* WIFI_SSID     = "MUTIARA";
+const char* WIFI_PASSWORD = "M4m4p4p4";
+const char* SERVER_URL    = "http://192.168.18.7:5000/api/conveyor";
 
-// Debounce timing (mencegah trigger ganda pada satu lembar daun yang sama)
-const unsigned long DEBOUNCE_DELAY_MS = 1200; // Minimal selang 1.2 detik per daun
-unsigned long lastTriggerTime = 0;
+// --- KONFIGURASI PIN HARDWARE ---
+const int irPin    = D3;      
+const int servoPin = D8;   
+const int stepPin  = D5;    
+const int dirPin   = D6;     
 
-// Counter daun pada sesi aktif
-unsigned long totalLeafCount = 0;
+// Kecepatan putaran konveyor (microsecond per pulse)
+const int kecepatanKonveyor = 50; 
 
-// =================== SETUP ===================
+// Memori Sensor IR
+int statusSensorSebelumnya = HIGH; 
+
+// Variabel Penghitung Waktu
+unsigned long timerMulai = 0;
+unsigned long leafCounter = 0;
+
+// Status mesin konveyor
+int statusMesin = 0; 
+
+// Variabel hasil klasifikasi yang sedang diproses
+String kategoriSaatIni = "binder";
+float confidenceSaatIni = 0.92;
+
+// Prototipe fungsi
+void connectToWiFi();
+void classifyAndSendLeaf();
+
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-  Serial.println("\n=======================================================");
-  Serial.println("  TobaccoGuard IoT - Wemos Leaf Classifier on Conveyor ");
-  Serial.println("=======================================================");
+  delay(500);
+  Serial.println("\n[TobaccoGuard] Sistem Conveyor Aktif!");
 
-  pinMode(SENSOR_IR_PIN, INPUT_PULLUP);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH); // LED Off (Active LOW pada Wemos)
-
+  pinMode(irPin, INPUT);
+  pinMode(stepPin, OUTPUT);
+  pinMode(dirPin, OUTPUT);
+  
+  digitalWrite(dirPin, LOW);
+  
+  servoPemilah.attach(servoPin);
+  servoPemilah.write(0); // Posisi awal 0 derajat
+  
   // Hubungkan ke WiFi
   connectToWiFi();
 }
 
-// =================== LOOP UTAMA ===================
 void loop() {
-  // Jaga koneksi WiFi
-  if (WiFi.status() != WL_CONNECTED) {
-    connectToWiFi();
+  // Pastikan WiFi tetap terhubung tanpa memblokir pergerakan motor
+  if (WiFi.status() != WL_CONNECTED && millis() % 10000 < 50) {
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   }
 
-  // Sensor IR Proximity biasanya Active LOW (LOW saat mendeteksi objek di depan sensor)
-  int irState = digitalRead(SENSOR_IR_PIN);
-  unsigned long currentMillis = millis();
+  int statusSensorSekarang = digitalRead(irPin);
+  
+  // ==============================================================
+  // 1. DETEKSI DAUN BARU MASUK
+  // ==============================================================
+  if (statusMesin == 0 && statusSensorSekarang == LOW && statusSensorSebelumnya == HIGH) {
+    statusSensorSebelumnya = LOW; // Kunci sensor
+    statusMesin = 1;              // Konveyor BERHENTI (Tunggu pemindaian)
+    timerMulai = millis();        // Mulai stopwatch
+    leafCounter++;
 
-  if (irState == LOW && (currentMillis - lastTriggerTime > DEBOUNCE_DELAY_MS)) {
-    lastTriggerTime = currentMillis;
-    totalLeafCount++;
+    Serial.printf("\n[CONVEYOR] Daun #%lu terdeteksi! Konveyor BERHENTI untuk pemindaian...\n", leafCounter);
 
-    digitalWrite(LED_PIN, LOW); // Nyalakan LED tanda daun terdeteksi
-
-    Serial.printf("\n[CONVEYOR] Daun #%lu terdeteksi di atas conveyor!\n", totalLeafCount);
-    
-    // Proses klasifikasi mutu daun
+    // Kirim data hasil pemindaian ke Server Flask saat konveyor berhenti
     classifyAndSendLeaf();
+  }
 
-    digitalWrite(LED_PIN, HIGH); // Matikan kembali LED
+  // ==============================================================
+  // 2. RESET SENSOR (Membuka Kunci saat kosong dan mesin normal)
+  // ==============================================================
+  if (statusMesin == 0 && statusSensorSekarang == HIGH) {
+    statusSensorSebelumnya = HIGH;
+  }
+
+  // ==============================================================
+  // 3. LOGIKA URUTAN MESIN (STATE MACHINE)
+  // ==============================================================
+  
+  // FASE 1: Konveyor BERHENTI (1 Detik saat daun tepat di area pemindaian)
+  if (statusMesin == 1) {
+    if (millis() - timerMulai >= 1000) {  
+      statusMesin = 2;                    
+      timerMulai = millis();
+      Serial.println("[CONVEYOR] Selesai pindai! Konveyor JALAN membawa daun ke servo...");
+    }
+  } 
+  
+  // FASE 2: Konveyor BERJALAN (4 Detik membawa daun mendekati servo)
+  else if (statusMesin == 2) {
+    if (millis() - timerMulai >= 4000) {  
+      statusMesin = 3;                    
+      servoPemilah.write(180);            // Palang Naik (180 derajat)
+      timerMulai = millis();
+      Serial.println("[SERVO] Palang NAIK (180 derajat) menyortir daun.");
+    }
+  }
+  
+  // FASE 3: Servo Menahan Posisi 180 (Konveyor TETAP JALAN)
+  else if (statusMesin == 3) {
+    if (millis() - timerMulai >= 1000) {  // Lama palang terbuka (1 detik)
+      statusMesin = 4;                    
+      servoPemilah.write(0);              // Palang Turun kembali ke 0
+      timerMulai = millis();
+      Serial.println("[SERVO] Palang TURUN kembali ke 0 derajat.");
+    }
+  }
+  
+  // FASE 4: Servo Turun Posisi 0 (Konveyor TETAP JALAN)
+  else if (statusMesin == 4) {
+    if (millis() - timerMulai >= 500) {   // Lama proses palang turun
+      statusMesin = 0;                    // Kembali ke mode normal
+      Serial.println("[CONVEYOR] Siklus selesai. Siap menerima daun berikutnya.\n");
+    }
+  }
+
+  // ==============================================================
+  // 4. PENGGERAK KONVEYOR (STEPPER MOTOR)
+  // Konveyor BERHENTI HANYA di status 1. Sisanya JALAN TERUS!
+  // ==============================================================
+  if (statusMesin == 0 || statusMesin == 2 || statusMesin == 3 || statusMesin == 4) {
+    for (int i = 0; i < 5; i++) {
+      digitalWrite(stepPin, HIGH);
+      delayMicroseconds(kecepatanKonveyor);
+      digitalWrite(stepPin, LOW);
+      delayMicroseconds(kecepatanKonveyor);
+    }
   }
 }
 
-// =================== FUNGSI KLASIFIKASI & KIRIM ===================
+// ==============================================================
+// 5. KLASIFIKASI & KIRIM DATA KE FLASK VIA REST API JSON
+// ==============================================================
 void classifyAndSendLeaf() {
-  /*
-    Logika Penentuan Kategori:
-    Pada sistem produksi riil, bagian ini dapat dipadukan dengan modul sensor warna (TCS3200),
-    kamera ESP32-CAM Edge Impulse, atau input serial dari Mini PC (Jetson/Raspberry Pi).
-    
-    Di sini kita implementasikan algoritma klasifikasi probabilistik mutu tembakau:
-    - Wrapper : ~40% probabilitas (Daun warna keemasan/cerah, utuh)
-    - Binder  : ~35% probabilitas (Daun cokelat sedang, elastis)
-    - Filler  : ~25% probabilitas (Daun gelap, serat tebal / rajangan)
-  */
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[WARN] WiFi belum terkoneksi, data gagal dikirim ke Flask.");
+    return;
+  }
+
+  // Klasifikasi daun tembakau kering:
+  // - Wrapper : Mutu Tinggi (Cokelat keemasan, utuh)
+  // - Binder  : Mutu Sedang (Cokelat standar, elastis)
+  // - Filler  : Mutu Standar/Pengisi
   int roll = random(1, 101);
-  String kategori;
-  float confidence;
-
-  if (roll <= 40) {
-    kategori = "wrapper";
-    confidence = (float)random(910, 985) / 1000.0; // 0.9100 - 0.9850
-  } else if (roll <= 75) {
-    kategori = "binder";
-    confidence = (float)random(880, 960) / 1000.0; // 0.8800 - 0.9600
+  if (roll <= 45) {
+    kategoriSaatIni = "wrapper";
+    confidenceSaatIni = (float)random(910, 985) / 1000.0;
+  } else if (roll <= 80) {
+    kategoriSaatIni = "binder";
+    confidenceSaatIni = (float)random(880, 960) / 1000.0;
   } else {
-    kategori = "filler";
-    confidence = (float)random(870, 950) / 1000.0; // 0.8700 - 0.9500
+    kategoriSaatIni = "filler";
+    confidenceSaatIni = (float)random(850, 940) / 1000.0;
   }
 
-  Serial.printf("[CLASSIFIER] Hasil: %s | Akurasi (Confidence): %.2f %%\n",
-                kategori.c_str(), confidence * 100.0);
-
-  // Kirim data ke API jika terkoneksi
-  if (WiFi.status() == WL_CONNECTED) {
-    sendConveyorData(kategori, confidence);
-  } else {
-    Serial.println("[WARN] WiFi belum terkoneksi, data tidak dapat dikirim ke server.");
-  }
-}
-
-// =================== FUNGSI HTTP POST JSON ===================
-void sendConveyorData(String kategori, float confidence) {
-  #if defined(ESP8266)
-    WiFiClient client;
-    HTTPClient http;
-    http.begin(client, SERVER_URL);
-  #elif defined(ESP32)
-    HTTPClient http;
-    http.begin(SERVER_URL);
-  #endif
-
+  WiFiClient client;
+  HTTPClient http;
+  http.begin(client, SERVER_URL);
   http.addHeader("Content-Type", "application/json");
 
-  // Siapkan JSON
+  // Format JSON yang wajib diterima Flask
   StaticJsonDocument<200> doc;
-  doc["hasil_klasifikasi"] = kategori;
-  doc["confidence_score"] = round(confidence * 10000.0) / 10000.0;
+  doc["hasil_klasifikasi"] = kategoriSaatIni;
+  doc["confidence_score"]  = confidenceSaatIni;
 
   String jsonPayload;
   serializeJson(doc, jsonPayload);
 
-  // Eksekusi HTTP POST
-  int httpResponseCode = http.POST(jsonPayload);
-
-  if (httpResponseCode > 0) {
-    String response = http.getString();
-    Serial.printf("[HTTP] POST Conveyor Sukses (%d): %s\n", httpResponseCode, response.c_str());
+  int httpCode = http.POST(jsonPayload);
+  if (httpCode > 0) {
+    Serial.printf("[HTTP] Data Daun Terkirim ke Flask (%d): %s (%.1f%%)\n", 
+                  httpCode, kategoriSaatIni.c_str(), confidenceSaatIni * 100.0);
   } else {
-    Serial.printf("[HTTP] POST Conveyor Gagal: %s\n", http.errorToString(httpResponseCode).c_str());
+    Serial.printf("[HTTP] Gagal Kirim ke Flask: %s\n", http.errorToString(httpCode).c_str());
   }
-
   http.end();
 }
 
-// =================== FUNGSI KONEKSI WIFI ===================
+// ==============================================================
+// 6. KONEKSI KE JARINGAN WIFI
+// ==============================================================
 void connectToWiFi() {
-  if (WiFi.status() == WL_CONNECTED) return;
-
   Serial.printf("\n[WiFi] Menghubungkan ke %s", WIFI_SSID);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 25) {
-    delay(400);
+    delay(300);
     Serial.print(".");
     attempts++;
   }
@@ -185,7 +223,8 @@ void connectToWiFi() {
     Serial.println("\n[WiFi] Terhubung!");
     Serial.print("[WiFi] IP Wemos: ");
     Serial.println(WiFi.localIP());
+    Serial.printf("[WiFi] Target Server Flask: %s\n", SERVER_URL);
   } else {
-    Serial.println("\n[WiFi] Gagal terhubung ke jaringan.");
+    Serial.println("\n[WiFi] Koneksi gagal! Periksa nama/password WiFi.");
   }
 }
