@@ -2,89 +2,13 @@
 ===================================================================================
 TobaccoGuard AI - Inference Script Klasifikasi Mutu Daun Tembakau
 ===================================================================================
-
-TODO: Script ini akan diisi setelah model hasil training tersedia di ai/models/
-
-Fungsi Inference yang Direncanakan:
-1. Load model .h5 atau .tflite dari folder ai/models/
-2. Terima input berupa gambar path atau frame dari kamera
-3. Preprocessing gambar (resize ke 224x224, normalisasi pixel 0-1)
-4. Prediksi kelas daun tembakau: 'wrapper', 'binder', atau 'filler'
-5. Kembalikan hasil klasifikasi beserta confidence score (0.0 - 1.0)
-6. (Opsional) Kirim hasil ke endpoint POST /api/conveyor secara otomatis
-
-Integrasi dengan Backend Flask:
-    POST /api/conveyor
-    Content-Type: application/json
-    {
-        "hasil_klasifikasi": "wrapper",   // salah satu: wrapper, binder, filler
-        "confidence_score": 0.9543        // nilai 0.0 - 1.0
-    }
-
-Cara Menjalankan (setelah model tersedia):
-    cd ai/
-    python inference.py --image path/ke/gambar_daun.jpg
-    python inference.py --camera 0   # Gunakan webcam / kamera ESP32-CAM stream
-
+Penggunaan:
+    python ai/inference.py --image path/ke/gambar.jpg
+    python ai/inference.py --camera 0
+    python ai/inference.py --camera 0 --auto 3    (auto-scan tiap 3 detik)
 ===================================================================================
 """
 
-<<<<<<< Updated upstream
-# TODO: Import library
-# import os
-# import sys
-# import argparse
-# import numpy as np
-# import json
-# import urllib.request
-# from PIL import Image
-# import tensorflow as tf
-
-# TODO: Konfigurasi
-# MODEL_PATH = 'models/tobacco_classifier_v1.h5'
-# TFLITE_PATH = 'models/tobacco_classifier_v1.tflite'
-# IMG_SIZE = (224, 224)
-# CLASS_NAMES = ['binder', 'filler', 'wrapper']  # Urutan alfabetis (sesuai Keras ImageDataGenerator)
-# API_ENDPOINT = 'http://127.0.0.1:5000/api/conveyor'
-
-# TODO: Load Model
-# def load_model(model_path=MODEL_PATH):
-#     ...
-
-# TODO: Preprocessing Gambar
-# def preprocess_image(image_path):
-#     ...
-
-# TODO: Prediksi / Klasifikasi Daun
-# def classify_leaf(image_path, model):
-#     ...
-#     # Return: {"hasil_klasifikasi": "wrapper", "confidence_score": 0.9543}
-
-# TODO: Kirim Hasil ke Backend Flask (POST /api/conveyor)
-# def send_to_api(hasil, confidence, endpoint=API_ENDPOINT):
-#     ...
-
-# TODO: Main Entry Point
-# def main():
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument('--image', type=str, help='Path ke gambar daun tembakau')
-#     args = parser.parse_args()
-#     ...
-
-# if __name__ == '__main__':
-#     main()
-
-print("=" * 60)
-print("  TobaccoGuard AI - Inference Script (Placeholder)")
-print("=" * 60)
-print("Model belum tersedia.")
-print("Jalankan ai/train.py terlebih dahulu setelah dataset tersedia,")
-print("lalu uncomment kode inference di atas.")
-print()
-print("Format output ke /api/conveyor:")
-print('  {"hasil_klasifikasi": "wrapper|binder|filler",')
-print('   "confidence_score": 0.0000 - 1.0000}')
-=======
 import os
 import sys
 import time
@@ -99,15 +23,14 @@ try:
 except ImportError:
     requests = None
 
-# Konfigurasi Default
+# Konfigurasi
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_KERAS_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_model.keras')
 DEFAULT_MODEL_PATH = DEFAULT_KERAS_PATH if os.path.exists(DEFAULT_KERAS_PATH) else os.path.join(BASE_DIR, 'models', 'tobacco_model.h5')
 DEFAULT_API_URL = 'http://127.0.0.1:5000/api/conveyor'
 IMG_SIZE = (224, 224)
 
-# Pemetaan Kelas Model Keras (Sesuai train.py)
-# Index 0: Filler (Low Quality), 1: Binder (Medium Quality), 2: Wrapper (High Quality)
+# Pemetaan Kelas (Index 0: Filler, 1: Binder, 2: Wrapper)
 CLASS_NAMES = ['filler', 'binder', 'wrapper']
 
 LABEL_DISPLAY = {
@@ -117,399 +40,206 @@ LABEL_DISPLAY = {
     'unknown': 'UNKNOWN (Tidak dikenal)'
 }
 
-# Warna OpenCV BGR
 CLASS_COLORS = {
-    'wrapper': (46, 204, 113),   # Hijau Zamrud
-    'binder':  (0, 215, 255),    # Kuning Keemasan
-    'filler':  (60, 76, 231),    # Merah Coral
-    'unknown': (128, 128, 128), # Abu-abu netral untuk unknown
-    'neutral': (200, 200, 200)   # Abu-abu netral
+    'wrapper': (46, 204, 113),
+    'binder':  (0, 215, 255),
+    'filler':  (60, 76, 231),
+    'unknown': (128, 128, 128),
+    'neutral': (200, 200, 200)
 }
 
 
-DEFAULT_ALEXNET_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_alexnet.h5')
-DEFAULT_SVM_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_svm.pkl')
+# =============================================================================
+# MUAT MODEL
+# =============================================================================
+_model_cache = None
 
-def load_ai_model(model_path=DEFAULT_MODEL_PATH):
-    """
-    Memuat model AI (Keras .h5 MobileNetV2 / AlexNet, atau Scikit-Learn SVM .pkl).
-    Secara cerdas mendeteksi format model yang diminta.
-    """
-    # Shortcut keyword
-    if str(model_path).lower() in ['alexnet', 'alex']:
-        model_path = DEFAULT_ALEXNET_PATH
-    elif str(model_path).lower() in ['mobilenet', 'mobilenetv2']:
-        model_path = DEFAULT_MODEL_PATH
+def load_model(model_path=DEFAULT_MODEL_PATH):
+    global _model_cache
+    if _model_cache is not None:
+        return _model_cache
 
-    # 1. Cek apakah path eksplisit meminta SVM atau berkas .pkl
-    if str(model_path).endswith('.pkl') and os.path.exists(model_path):
-        import joblib
-        print(f"[INFO] Memuat model Machine Learning SVM dari: {model_path} ...")
-        svm_model = joblib.load(model_path)
-        print("[SUCCESS] Model SVM berhasil dimuat (Akurasi: 76.3%).")
-        # Warm-up dummy prediction
-        try:
-            _ = svm_model.predict([np.zeros(36, dtype=np.float32)])
-        except Exception:
-            pass
-        return {'type': 'svm', 'model': svm_model}
+    if not os.path.exists(model_path):
+        print(f"[ERROR] Model tidak ditemukan: {model_path}")
+        return None
 
-    # 2. Coba muat model Keras Deep Learning (.h5 MobileNetV2 atau AlexNet)
-    if os.path.exists(model_path):
-        try:
-            import tensorflow as tf
-            os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-            arch_name = "AlexNet" if "alexnet" in str(model_path).lower() else "MobileNetV2"
-            print(f"[INFO] Memuat model Deep Learning {arch_name} dari: {model_path} ...")
-            keras_model = tf.keras.models.load_model(model_path)
-            print(f"[SUCCESS] Model {arch_name} berhasil dimuat.")
-            # Warm-up computational graph agar deteksi pertama instan
-            dummy = np.zeros((1, 224, 224, 3), dtype=np.float32)
-            try:
-                _ = keras_model(dummy, training=False).numpy()
-            except Exception:
-                _ = keras_model.predict(dummy, verbose=0)
-            return {'type': 'keras', 'model': keras_model, 'arch': arch_name}
-        except ImportError:
-            print("[WARN] TensorFlow belum siap. Mencoba fallback ke model SVM...")
-        except Exception as e:
-            print(f"[WARN] Gagal memuat model Keras ({e}). Mencoba fallback ke model SVM...")
+    import tensorflow as tf
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+    print(f"[INFO] Memuat model dari: {model_path} ...")
+    keras_model = tf.keras.models.load_model(model_path)
+    print("[OK] Model berhasil dimuat.")
 
-    # 3. Fallback ke model SVM jika .h5 belum bisa dimuat
-    if os.path.exists(DEFAULT_SVM_PATH):
-        import joblib
-        print(f"[INFO] Menggunakan model SVM fallback: {DEFAULT_SVM_PATH} ...")
-        svm_model = joblib.load(DEFAULT_SVM_PATH)
-        print("[SUCCESS] Model SVM aktif dan siap digunakan.")
-        try:
-            _ = svm_model.predict([np.zeros(36, dtype=np.float32)])
-        except Exception:
-            pass
-        return {'type': 'svm', 'model': svm_model}
+    # Warm-up
+    dummy = np.zeros((1, 224, 224, 3), dtype=np.float32)
+    try:
+        _ = keras_model(dummy, training=False).numpy()
+    except Exception:
+        _ = keras_model.predict(dummy, verbose=0)
 
-    print("[ERROR] Tidak ada model yang ditemukan (.h5 maupun .pkl).")
-    return None
+    _model_cache = keras_model
+    return keras_model
 
 
-def preprocess_image(img_bgr, target_size=IMG_SIZE):
-    """
-    Preprocessing gambar untuk Keras MobileNetV2:
-    1. Konversi BGR ke RGB
-    2. Resize ke target_size (224, 224)
-    3. Normalisasi piksel ke range [0.0, 1.0]
-    """
+# =============================================================================
+# PREDIKSI
+# =============================================================================
+def classify(model, img_bgr):
+    """Prediksi kelas mutu dari gambar BGR. Return: (kelas, confidence, probabilitas)"""
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    img_resized = cv2.resize(img_rgb, target_size, interpolation=cv2.INTER_AREA)
+    img_resized = cv2.resize(img_rgb, IMG_SIZE, interpolation=cv2.INTER_AREA)
     img_norm = img_resized.astype(np.float32) / 255.0
-    return np.expand_dims(img_norm, axis=0)
+    img_batch = np.expand_dims(img_norm, axis=0)
 
-
-def classify_frame(model_wrapper, img_bgr):
-    """Melakukan prediksi mutu daun dari potongan gambar BGR."""
-    if model_wrapper is None:
-        return 'binder', 0.85, [0.1, 0.85, 0.05], None
-
-    m_type = model_wrapper.get('type')
-    model = model_wrapper.get('model')
-
-    # Prediksi via SVM
-    if m_type == 'svm':
-        try:
-            from train_svm import extract_feature_vector
-        except ImportError:
-            from ai.train_svm import extract_feature_vector
-
-        feat = extract_feature_vector(img_bgr)
-        pred_idx = int(model.predict([feat])[0])
-        probas = model.predict_proba([feat])[0]
-        confidence = float(probas[pred_idx])
-        predicted_class = CLASS_NAMES[pred_idx]
-        fitur_vektor = [round(float(v), 4) for v in feat.tolist()]
-        return predicted_class, confidence, probas, fitur_vektor
-
-    # Prediksi via Keras MobileNetV2
-    input_data = preprocess_image(img_bgr)
-    preds = model.predict(input_data, verbose=0)[0]
+    preds = model.predict(img_batch, verbose=0)[0]
     pred_idx = int(np.argmax(preds))
     confidence = float(preds[pred_idx])
     predicted_class = CLASS_NAMES[pred_idx]
 
-    fitur_vektor = None
-    try:
-        pooling_layer = None
-        for layer in reversed(model.layers):
-            if 'global_average_pooling' in layer.name or 'dropout' in layer.name:
-                pooling_layer = layer
-                break
-        if pooling_layer:
-            import tensorflow as tf
-            sub_model = tf.keras.Model(inputs=model.input, outputs=pooling_layer.output)
-            features = sub_model.predict(input_data, verbose=0)[0]
-            fitur_vektor = [round(float(v), 4) for v in features[:1280]]
-    except Exception:
-        fitur_vektor = None
-
-    return predicted_class, confidence, preds, fitur_vektor
+    return predicted_class, confidence, preds
 
 
-def send_to_server(api_url, hasil_klasifikasi, confidence_score, leaf_img_bgr=None, fitur_vektor=None):
-    """
-    Mengirim hasil inferensi ke endpoint Flask /api/conveyor.
-    Mengirim file gambar dalam format multipart jika tersedia.
-    """
-    if not requests:
-        return False, "Modul 'requests' belum terinstall"
+# =============================================================================
+# KIRIM KE SERVER
+# =============================================================================
+def send_to_server(api_url, hasil, confidence, img_bgr=None):
+    if not requests or not api_url:
+        return False, "API tidak aktif"
 
     try:
-        payload = {
-            'hasil_klasifikasi': hasil_klasifikasi,
-            'confidence_score': str(round(confidence_score, 4))
-        }
-        if fitur_vektor:
-            payload['fitur_vektor'] = json.dumps(fitur_vektor)
-
+        payload = {'hasil_klasifikasi': hasil, 'confidence_score': str(round(confidence, 4))}
         files = None
-        if leaf_img_bgr is not None:
-            # Encode frame ke format JPEG in-memory
-            success, enc_img = cv2.imencode('.jpg', leaf_img_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
-            if success:
-                files = {'gambar': ('leaf_capture.jpg', enc_img.tobytes(), 'image/jpeg')}
+        if img_bgr is not None:
+            ok, enc = cv2.imencode('.jpg', img_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+            if ok:
+                files = {'gambar': ('leaf.jpg', enc.tobytes(), 'image/jpeg')}
 
         if files:
             res = requests.post(api_url, data=payload, files=files, timeout=4.0)
         else:
-            headers = {'Content-Type': 'application/json'}
-            res = requests.post(api_url, json={
-                'hasil_klasifikasi': hasil_klasifikasi,
-                'confidence_score': round(confidence_score, 4)
-            }, headers=headers, timeout=4.0)
+            res = requests.post(api_url, json={'hasil_klasifikasi': hasil, 'confidence_score': round(confidence, 4)}, timeout=4.0)
 
-        if res.status_code in [200, 201]:
-            return True, f"HTTP {res.status_code} - Data Tersimpan"
-        else:
-            return False, f"HTTP {res.status_code}: {res.text[:40]}"
+        return res.status_code in [200, 201], f"HTTP {res.status_code}"
     except Exception as e:
-        return False, f"Koneksi Gagal ({type(e).__name__})"
+        return False, f"Gagal ({type(e).__name__})"
 
 
-def draw_hud(frame, last_result, auto_scan, auto_interval, fps):
-    """Menggambar antarmuka grafis (HUD) pada layar stream webcam."""
-    h, w, _ = frame.shape
-
-    # 1. Hitung kotak panduan (Guide Box ROI) di tengah layar
-    # Sesuaikan dengan ukuran kotak panduan pada UI web (300x300 piksel)
-    # Gunakan nilai tetap 300 bila resolusi memungkinkan, otherwise fallback ke 65% dari dimensi terkecil
-    desired_size = 300
-    max_possible = int(min(h, w) * 0.65)
-    box_size = desired_size if desired_size <= max_possible else max_possible
-    x1 = (w - box_size) // 2
-    y1 = (h - box_size) // 2
-    x2 = x1 + box_size
-    y2 = y1 + box_size
-
-    # Tentukan warna kotak berdasarkan hasil klasifikasi
-    box_color = CLASS_COLORS['neutral']
-    if last_result and (time.time() - last_result['timestamp'] < 4.0):
-        box_color = CLASS_COLORS.get(last_result['class'], CLASS_COLORS['neutral'])
-
-    # Gambar sudut-sudut kotak panduan (Corner brackets modern)
-    line_len = 35
-    thickness = 3
-    # Kiri Atas
-    cv2.line(frame, (x1, y1), (x1 + line_len, y1), box_color, thickness)
-    cv2.line(frame, (x1, y1), (x1, y1 + line_len), box_color, thickness)
-    # Kanan Atas
-    cv2.line(frame, (x2, y1), (x2 - line_len, y1), box_color, thickness)
-    cv2.line(frame, (x2, y1), (x2, y1 + line_len), box_color, thickness)
-    # Kiri Bawah
-    cv2.line(frame, (x1, y2), (x1 + line_len, y2), box_color, thickness)
-    cv2.line(frame, (x1, y2), (x1, y2 - line_len), box_color, thickness)
-    # Kanan Bawah
-    cv2.line(frame, (x2, y2), (x2 - line_len, y2), box_color, thickness)
-    cv2.line(frame, (x2, y2), (x2, y2 - line_len), box_color, thickness)
-
-    # 2. Header Status Atas
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (0, 0), (w, 50), (25, 25, 25), -1)
-    cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
-
-    title_text = "TobaccoGuard AI Conveyor Classifier"
-    cv2.putText(frame, title_text, (15, 32), cv2.FONT_HERSHEY_DUPLEX, 0.75, (255, 255, 255), 2)
-
-    # Mode badge
-    mode_text = f"AUTO ({auto_interval}s)" if auto_scan else "MANUAL [SPASI]"
-    mode_color = (0, 255, 128) if auto_scan else (200, 200, 200)
-    cv2.putText(frame, mode_text, (w - 200, 32), cv2.FONT_HERSHEY_DUPLEX, 0.55, mode_color, 1)
-
-    # 3. Banner Hasil Klasifikasi (Jika ada)
-    if last_result and (time.time() - last_result['timestamp'] < 4.0):
-        cls = last_result['class']
-        conf = last_result['conf'] * 100.0
-        api_msg = last_result['api_msg']
-        is_ok = last_result['api_ok']
-
-        # Banner bawah
-        banner_h = 75
-        cv2.rectangle(frame, (x1 - 20, y2 + 10), (x2 + 20, y2 + 10 + banner_h), (20, 20, 20), -1)
-        cv2.rectangle(frame, (x1 - 20, y2 + 10), (x2 + 20, y2 + 10 + banner_h), box_color, 2)
-
-        res_str = f"MUTU: {LABEL_DISPLAY.get(cls, cls).upper()}"
-        conf_str = f"Keyakinan: {conf:.1f}%"
-        cv2.putText(frame, res_str, (x1 - 10, y2 + 38), cv2.FONT_HERSHEY_DUPLEX, 0.65, box_color, 2)
-        cv2.putText(frame, conf_str, (x1 - 10, y2 + 65), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
-
-        # Status Server
-        stat_col = (46, 204, 113) if is_ok else (60, 76, 231)
-        cv2.putText(frame, f"Server: {api_msg}", (x1 + 170, y2 + 65), cv2.FONT_HERSHEY_SIMPLEX, 0.45, stat_col, 1)
-
-    # 4. Footer Petunjuk Kontrol
-    footer_text = "[SPASI] Scan  |  [A] Toggle Auto  |  [C] Reset  |  [Q] Keluar"
-    cv2.putText(frame, footer_text, (15, h - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (220, 220, 220), 1)
-
-    return (x1, y1, x2, y2)
-
-
-def run_webcam_stream(camera_index=0, model_path=DEFAULT_MODEL_PATH, api_url=DEFAULT_API_URL, auto_interval=0):
-    """Menjalankan loop video stream webcam secara interaktif."""
-    model = load_ai_model(model_path)
-
-    print(f"\n[INFO] Membuka webcam (Device Index: {camera_index}) ...")
-    cap = cv2.VideoCapture(camera_index)
-
-    if not cap.isOpened():
-        print(f"[ERROR] Tidak dapat membuka webcam index {camera_index}!")
-        print("Saran penyelesaian:")
-        print("  1. Pastikan webcam USB Anda tertancap atau kamera laptop tidak digunakan aplikasi lain.")
-        print("  2. Coba ganti index kamera: python inference.py --camera 1")
-        return
-
-    # Set resolusi preferensi (VGA / HD)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-
-    window_name = "TobaccoGuard AI - Camera Scanner"
-    cv2.namedWindow(window_name, cv2.WINDOW_AUTOSIZE)
-
-    auto_scan = (auto_interval > 0)
-    last_auto_scan = time.time()
-    last_result = None
-
-    fps_time = time.time()
-    fps = 0
-
-    print("\n" + "=" * 60)
-    print("  Kamera Berjalan! Letakkan daun di dalam kotak panduan.")
-    print("  Tekan [SPASI] untuk memindai & mengirim ke server.")
-    print("  Tekan [A] untuk menyalakan/mematikan mode otomatis.")
-    print("  Tekan [Q] di jendela kamera untuk keluar.")
-    print("=" * 60 + "\n")
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("[WARN] Gagal membaca frame dari webcam.")
-            break
-
-        # Hitung FPS
-        now = time.time()
-        fps = 1.0 / (now - fps_time) if (now - fps_time) > 0 else 30
-        fps_time = now
-
-        # Gambar antarmuka HUD
-        roi_coords = draw_hud(frame, last_result, auto_scan, auto_interval, fps)
-        x1, y1, x2, y2 = roi_coords
-
-        cv2.imshow(window_name, frame)
-
-        # Cek apakah harus auto-scan
-        should_scan = False
-        if auto_scan and (now - last_auto_scan >= auto_interval):
-            should_scan = True
-            last_auto_scan = now
-
-        key = cv2.waitKey(1) & 0xFF
-        if key in [ord('q'), ord('Q'), 27]:  # 27 = ESC
-            break
-        elif key == ord(' '):
-            should_scan = True
-        elif key in [ord('a'), ord('A')]:
-            auto_scan = not auto_scan
-            auto_interval = auto_interval if auto_interval > 0 else 3
-            last_auto_scan = time.time()
-            print(f"[MODE] Auto-Scan: {'AKTIF (' + str(auto_interval) + 's)' if auto_scan else 'NONAKTIF'}")
-        elif key in [ord('c'), ord('C')]:
-            last_result = None
-
-        if should_scan:
-            # Crop daun tepat di dalam guide box ROI
-            leaf_crop = frame[y1:y2, x1:x2].copy()
-            if leaf_crop.size > 0:
-                print("\n[AI SCAN] Memproses klasifikasi daun...")
-                cls, conf, preds, vec = classify_frame(model, leaf_crop)
-                print(f"[HASIL] {LABEL_DISPLAY.get(cls, cls)} | Keyakinan: {conf*100:.2f}%")
-
-                # Kirim ke backend
-                api_ok, api_msg = send_to_server(api_url, cls, conf, leaf_crop, vec)
-                print(f"[SERVER API] {api_msg}")
-
-                last_result = {
-                    'class': cls,
-                    'conf': conf,
-                    'timestamp': time.time(),
-                    'api_ok': api_ok,
-                    'api_msg': api_msg
-                }
-
-    cap.release()
-    cv2.destroyAllWindows()
-    print("[INFO] Sesi webcam selesai.")
-
-
-def run_single_image(image_path, model_path=DEFAULT_MODEL_PATH, api_url=DEFAULT_API_URL, send_api=True):
-    """Menjalankan klasifikasi pada satu berkas gambar."""
+# =============================================================================
+# MODE GAMBAR TUNGGAL
+# =============================================================================
+def run_image(image_path, model_path, api_url):
     if not os.path.exists(image_path):
         print(f"[ERROR] Gambar tidak ditemukan: {image_path}")
         return
 
-    model = load_ai_model(model_path)
-    img_bgr = cv2.imread(image_path)
-    if img_bgr is None:
-        print(f"[ERROR] Berkas gambar rusak atau format tidak didukung: {image_path}")
+    model = load_model(model_path)
+    img = cv2.imread(image_path)
+    if img is None:
+        print(f"[ERROR] Gambar rusak: {image_path}")
         return
 
-    print(f"\n[INFO] Mengklasifikasikan: {image_path} ...")
-    cls, conf, preds, vec = classify_frame(model, img_bgr)
-
+    cls, conf, preds = classify(model, img)
     print("=" * 50)
-    print(f"  Hasil Klasifikasi : {LABEL_DISPLAY.get(cls, cls).upper()}")
-    print(f"  Confidence Score  : {conf*100:.2f}%")
-    print(f"  Distribusi Prob   : Wrapper: {preds[2]*100:.1f}%, Binder: {preds[1]*100:.1f}%, Filler: {preds[0]*100:.1f}%")
+    print(f"  Hasil  : {LABEL_DISPLAY.get(cls, cls)}")
+    print(f"  Confidence : {conf*100:.2f}%")
+    print(f"  Distribusi : Filler={preds[0]*100:.1f}% | Binder={preds[1]*100:.1f}% | Wrapper={preds[2]*100:.1f}%")
     print("=" * 50)
 
-    if send_api:
-        api_ok, api_msg = send_to_server(api_url, cls, conf, img_bgr, vec)
-        print(f"[SERVER API] {api_msg}")
+    if api_url:
+        ok, msg = send_to_server(api_url, cls, conf, img)
+        print(f"[SERVER] {msg}")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="TobaccoGuard AI - Leaf Quality Classifier")
-    parser.add_argument('--camera', type=int, default=0, help="Index webcam (default: 0)")
-    parser.add_argument('--image', type=str, default=None, help="Path ke gambar daun tunggal untuk pengujian")
-    parser.add_argument('--model', type=str, default=DEFAULT_MODEL_PATH, help="Path ke model .h5")
-    parser.add_argument('--api', type=str, default=DEFAULT_API_URL, help="Endpoint REST API Flask")
-    parser.add_argument('--auto', type=int, default=0, help="Interval auto-scan dalam detik (0 = manual spasi)")
-    parser.add_argument('--no-send', action='store_true', help="Jangan kirim hasil ke backend Flask")
+# =============================================================================
+# MODE WEBCAM / KAMERA
+# =============================================================================
+def run_camera(camera_index, model_path, api_url, auto_interval):
+    model = load_model(model_path)
+    if model is None:
+        return
 
+    cap = cv2.VideoCapture(camera_index)
+    if not cap.isOpened():
+        print(f"[ERROR] Tidak dapat membuka webcam index {camera_index}")
+        return
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
+    auto_scan = (auto_interval > 0)
+    last_scan = time.time()
+    last_result = None
+
+    print("\n  Kamera aktif! [SPASI] Scan | [A] Toggle Auto | [Q] Keluar\n")
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        h, w = frame.shape[:2]
+        box_size = min(300, int(min(h, w) * 0.65))
+        x1, y1 = (w - box_size) // 2, (h - box_size) // 2
+        x2, y2 = x1 + box_size, y1 + box_size
+
+        # Gambar kotak panduan
+        color = CLASS_COLORS.get(last_result['class'], CLASS_COLORS['neutral']) if last_result and (time.time() - last_result['t'] < 4) else CLASS_COLORS['neutral']
+        for corner in [(x1, y1, x1+35, y1, x1, y1+35), (x2, y1, x2-35, y1, x2, y1+35),
+                       (x1, y2, x1+35, y2, x1, y2-35), (x2, y2, x2-35, y2, x2, y2-35)]:
+            cv2.line(frame, (corner[0], corner[1]), (corner[2], corner[3]), color, 3)
+            cv2.line(frame, (corner[0], corner[1]), (corner[4], corner[5]), color, 3)
+
+        # Banner hasil
+        if last_result and (time.time() - last_result['t'] < 4):
+            cv2.putText(frame, f"MUTU: {LABEL_DISPLAY.get(last_result['class'], '').upper()} ({last_result['conf']*100:.1f}%)",
+                        (x1 - 10, y2 + 30), cv2.FONT_HERSHEY_DUPLEX, 0.6, color, 2)
+
+        cv2.imshow("TobaccoGuard AI", frame)
+
+        # Cek scan
+        should_scan = False
+        now = time.time()
+        if auto_scan and (now - last_scan >= auto_interval):
+            should_scan = True
+            last_scan = now
+
+        key = cv2.waitKey(1) & 0xFF
+        if key in [ord('q'), 27]:
+            break
+        elif key == ord(' '):
+            should_scan = True
+        elif key == ord('a'):
+            auto_scan = not auto_scan
+            print(f"[MODE] Auto: {'ON' if auto_scan else 'OFF'}")
+
+        if should_scan:
+            crop = frame[y1:y2, x1:x2].copy()
+            if crop.size > 0:
+                cls, conf, _ = classify(model, crop)
+                print(f"[SCAN] {LABEL_DISPLAY.get(cls)} | {conf*100:.1f}%")
+                if api_url:
+                    send_to_server(api_url, cls, conf, crop)
+                last_result = {'class': cls, 'conf': conf, 't': time.time()}
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+# =============================================================================
+# MAIN
+# =============================================================================
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="TobaccoGuard AI Classifier")
+    parser.add_argument('--camera', type=int, default=0)
+    parser.add_argument('--image', type=str, default=None)
+    parser.add_argument('--model', type=str, default=DEFAULT_MODEL_PATH)
+    parser.add_argument('--api', type=str, default=DEFAULT_API_URL)
+    parser.add_argument('--auto', type=int, default=0)
+    parser.add_argument('--no-send', action='store_true')
     args = parser.parse_args()
 
-    target_api = None if args.no_send else args.api
+    api = None if args.no_send else args.api
 
     if args.image:
-        run_single_image(args.image, model_path=args.model, api_url=target_api, send_api=(not args.no_send))
+        run_image(args.image, args.model, api)
     else:
-        run_webcam_stream(camera_index=args.camera, model_path=args.model, api_url=target_api, auto_interval=args.auto)
-
-
-if __name__ == '__main__':
-    main()
->>>>>>> Stashed changes
+        run_camera(args.camera, args.model, api, args.auto)
