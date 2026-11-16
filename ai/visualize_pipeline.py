@@ -97,116 +97,338 @@ def find_sample_images():
     return samples
 
 
+
 def generate_pipeline_stages(sample_info):
     """
-    Menghasilkan 1 gambar panel komparatif yang memperlihatkan alur pemrosesan citra lengkap:
-    Tahap 1: Citra Asli (Raw Input)
-    Tahap 2: Bounding Box Detection
-    Tahap 3: Pemotongan ROI (Region of Interest)
-    Tahap 4: Segmentasi & Analisis Ruang Warna HSV
-    Tahap 5: Deteksi Tekstur & Urat Daun (Sobel Gradient)
-    Tahap 6: Output Klasifikasi Akhir
-    """
-    print("[1/4] Membuat visualisasi tahapan pipeline pemrosesan citra ...")
-    img_path = sample_info['path']
-    coords = sample_info['coords']
-    
-    # 1. Buka Citra Asli
-    img_bgr = cv2.imread(img_path)
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    h_img, w_img, _ = img_rgb.shape
-    
-    # 2. Hitung Bounding Box
-    cx, cy = coords.get('x', w_img // 2), coords.get('y', h_img // 2)
-    bw, bh = coords.get('width', w_img), coords.get('height', h_img)
-    x1 = max(0, int(cx - bw / 2.0))
-    y1 = max(0, int(cy - bh / 2.0))
-    x2 = min(w_img, int(cx + bw / 2.0))
-    y2 = min(h_img, int(cy + bh / 2.0))
-    
-    # Citra dengan Bounding Box
-    img_bbox = img_rgb.copy()
-    cv2.rectangle(img_bbox, (x1, y1), (x2, y2), (0, 220, 255), 3)
-    cv2.putText(img_bbox, f"ROI Daun [{x2-x1}x{y2-y1}]", (x1 + 5, max(30, y1 - 10)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 220, 255), 2)
-    
-    # 3. Pemotongan ROI
-    roi_rgb = img_rgb[y1:y2, x1:x2]
-    if roi_rgb.size == 0:
-        roi_rgb = img_rgb
-    roi_bgr = cv2.cvtColor(roi_rgb, cv2.COLOR_RGB2BGR)
-    
-    # 4. Segmentasi Warna HSV
-    roi_hsv = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2HSV)
-    mask_brown = cv2.inRange(roi_hsv, np.array([0, 30, 30]), np.array([25, 200, 200]))
-    mask_green = cv2.inRange(roi_hsv, np.array([25, 30, 30]), np.array([85, 255, 220]))
-    mask_yellow = cv2.inRange(roi_hsv, np.array([15, 40, 50]), np.array([45, 255, 255]))
-    leaf_mask = mask_brown | mask_green | mask_yellow
-    segmented_rgb = cv2.bitwise_and(roi_rgb, roi_rgb, mask=leaf_mask)
-    
-    # 5. Ekstraksi Tekstur & Urat Daun (Sobel Magnitude)
-    gray = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2GRAY)
-    sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
-    sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
-    sobel_mag = np.sqrt(sobel_x**2 + sobel_y**2)
-    sobel_norm = cv2.normalize(sobel_mag, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-    sobel_colormap = cv2.applyColorMap(sobel_norm, cv2.COLORMAP_VIRIDIS)
-    sobel_colormap_rgb = cv2.cvtColor(sobel_colormap, cv2.COLOR_BGR2RGB)
-    
-    # 6. Simulasi Hasil Klasifikasi AI
-    output_vis = roi_rgb.copy()
-    h_out, w_out, _ = output_vis.shape
-    overlay = output_vis.copy()
-    # Banner bawah untuk label
-    banner_height = max(40, int(h_out * 0.22))
-    cv2.rectangle(overlay, (0, h_out - banner_height), (w_out, h_out), (20, 24, 30), -1)
-    cv2.addWeighted(overlay, 0.75, output_vis, 0.25, 0, output_vis)
-    
-    grade_text = "WRAPPER (High)"
-    conf_text = "Keyakinan: 94.8%"
-    cv2.putText(output_vis, grade_text, (10, h_out - banner_height + 22),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (46, 204, 113), 2)
-    cv2.putText(output_vis, conf_text, (10, h_out - 8),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (230, 230, 230), 1)
+    Visualisasi tahapan Computer Vision TobaccoGuard AI
+    menggunakan segmentasi HSV berdasarkan warna merah conveyor.
 
-    # Plot ke dalam 1 figure 2 baris x 3 kolom
-    fig, axes = plt.subplots(2, 3, figsize=(14, 9), facecolor='#f8f9fa')
-    fig.suptitle("Visualisasi Tahapan Pipeline Pengolahan Citra Daun Tembakau", 
-                 fontsize=15, fontweight='bold', color='#2c3e50', y=0.98)
-    
+    Tahapan:
+    1. Citra asli
+    2. Ruang warna HSV
+    3. Segmentasi HSV + Invert
+    4. Morphological Operation
+    5. Contour Detection + Bounding Box
+    6. ROI + Contour
+    """
+
+    print("[1/4] Membuat visualisasi pipeline Computer Vision HSV...")
+
+    # =========================================
+    # 1. MEMBACA CITRA ASLI
+    # =========================================
+
+    img_path = sample_info['path']
+
+    img_bgr = cv2.imread(img_path)
+
+    if img_bgr is None:
+        raise ValueError("Gambar gagal dibaca!")
+
+    img_rgb = cv2.cvtColor(
+        img_bgr,
+        cv2.COLOR_BGR2RGB
+    )
+
+    height, width = img_rgb.shape[:2]
+
+    print("Resolusi gambar:", width, "x", height)
+
+    # =========================================
+    # 2. KONVERSI BGR KE HSV
+    # =========================================
+
+    img_hsv = cv2.cvtColor(
+        img_bgr,
+        cv2.COLOR_BGR2HSV
+    )
+
+    # Visualisasi kanal Hue untuk panel HSV
+    hue_channel = img_hsv[:, :, 0]
+
+    # =========================================
+    # 3. SEGMENTASI WARNA MERAH
+    # =========================================
+
+    lower_red1 = np.array([0, 50, 50])
+    upper_red1 = np.array([10, 255, 255])
+
+    lower_red2 = np.array([170, 50, 50])
+    upper_red2 = np.array([180, 255, 255])
+
+    # Membuat mask warna merah pertama
+    mask1 = cv2.inRange(
+        img_hsv,
+        lower_red1,
+        upper_red1
+    )
+
+    # Membuat mask warna merah kedua
+    mask2 = cv2.inRange(
+        img_hsv,
+        lower_red2,
+        upper_red2
+    )
+
+    # Menggabungkan kedua mask merah
+    red_background_mask = mask1 + mask2
+
+    # Invert: daun putih, background merah hitam
+    binary_mask = cv2.bitwise_not(
+        red_background_mask
+    )
+
+    # =========================================
+    # 4. MORPHOLOGICAL OPERATION
+    # =========================================
+
+    KERNEL_SIZE = 15
+
+    kernel = np.ones(
+        (KERNEL_SIZE, KERNEL_SIZE),
+        np.uint8
+    )
+
+    # Closing untuk menutup lubang dan celah kecil
+    closing_mask = cv2.morphologyEx(
+        binary_mask,
+        cv2.MORPH_CLOSE,
+        kernel,
+        iterations=3
+    )
+
+    # Opening untuk mengurangi noise kecil
+    clean_mask = cv2.morphologyEx(
+        closing_mask,
+        cv2.MORPH_OPEN,
+        kernel,
+        iterations=1
+    )
+
+    # =========================================
+    # 5. DETEKSI CONTOUR
+    # =========================================
+
+    contours, _ = cv2.findContours(
+        clean_mask.copy(),
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE
+    )
+
+    if not contours:
+        raise ValueError("Daun tidak ditemukan!")
+
+    # Memilih kontur terbesar
+    leaf_contour = max(
+        contours,
+        key=cv2.contourArea
+    )
+
+    # Validasi luas kontur
+    MIN_AREA_RATIO = 0.01
+    min_area = height * width * MIN_AREA_RATIO
+
+    leaf_area = cv2.contourArea(leaf_contour)
+
+    if leaf_area < min_area:
+        raise ValueError(
+            f"Objek terlalu kecil: {leaf_area:.1f} piksel"
+        )
+
+    # =========================================
+    # 6. MEMBUAT BOUNDING BOX
+    # =========================================
+
+    x, y, w, h = cv2.boundingRect(
+        leaf_contour
+    )
+
+    # Menambahkan padding
+    PADDING = 30
+
+    x1 = max(0, x - PADDING)
+    y1 = max(0, y - PADDING)
+
+    x2 = min(width, x + w + PADDING)
+    y2 = min(height, y + h + PADDING)
+
+    # Menggambar bounding box pada citra asli
+    bbox_image = img_rgb.copy()
+
+    cv2.rectangle(
+        bbox_image,
+        (x1, y1),
+        (x2, y2),
+        (0, 255, 0),
+        5
+    )
+
+    # =========================================
+    # 7. CROP ROI
+    # =========================================
+
+    roi = img_rgb[y1:y2, x1:x2].copy()
+
+    if roi.size == 0:
+        raise ValueError("ROI gagal dibuat!")
+
+    # =========================================
+    # 8. CONTOUR PADA ROI
+    # =========================================
+
+    # Menyesuaikan koordinat contour ke ROI
+    roi_contour = leaf_contour.copy()
+
+    roi_contour[:, :, 0] -= x1
+    roi_contour[:, :, 1] -= y1
+
+    # Menggambar contour hijau pada ROI
+    roi_with_contour = roi.copy()
+
+    cv2.drawContours(
+        roi_with_contour,
+        [roi_contour],
+        -1,
+        (0, 255, 0),
+        3
+    )
+
+    # =========================================
+    # 9. VISUALISASI SELURUH TAHAPAN
+    # =========================================
+
+    fig, axes = plt.subplots(
+        2,
+        3,
+        figsize=(16, 10),
+        facecolor="#f8f9fa"
+    )
+
+    fig.suptitle(
+        "TobaccoGuard AI - Computer Vision Pipeline (HSV-Based)",
+        fontsize=15,
+        fontweight="bold",
+        color="#2c3e50"
+    )
+
     stages = [
-        (img_rgb, "Tahap 1: Citra Masukan Asli (Raw Input)", 
-         f"Resolusi: {w_img}x{h_img} px (Tangkapan Kamera/Dataset)"),
-        (img_bbox, "Tahap 2: Deteksi Bounding Box Daun", 
-         f"Area Koordinat: x={x1}, y={y1}, w={x2-x1}, h={y2-y1}"),
-        (roi_rgb, "Tahap 3: Pemotongan ROI (Region of Interest)", 
-         "Fokus hanya pada daun, mengeliminasi background"),
-        (segmented_rgb, "Tahap 4: Segmentasi Warna HSV Daun", 
-         "Memisahkan piksel daun berdasarkan rentang Hue & Saturation"),
-        (sobel_colormap_rgb, "Tahap 5: Deteksi Tekstur & Urat Daun (Sobel)", 
-         "Gradient magnitude mendeteksi kehalusan & kerutan serat daun"),
-        (output_vis, "Tahap 6: Hasil Klasifikasi Model AI", 
-         "Prediksi kelas mutu (Wrapper/Binder/Filler) & Confidence Score")
+        (
+            img_rgb,
+            "1. Citra Asli",
+            f"Resolusi: {width} x {height} piksel",
+            "rgb"
+        ),
+        (
+            hue_channel,
+            "2. Ruang Warna HSV (Hue)",
+            "Menampilkan kanal Hue dari ruang warna HSV",
+            "hue"
+        ),
+        (
+            binary_mask,
+            "3. Segmentasi HSV + Invert",
+            "Daun putih dan background merah hitam",
+            "gray"
+        ),
+        (
+            clean_mask,
+            "4. Morphological Operation",
+            "Closing 3 iterasi + Opening 1 iterasi",
+            "gray"
+        ),
+        (
+            bbox_image,
+            "5. Contour + Bounding Box",
+            f"Posisi: x={x1}, y={y1}, w={x2-x1}, h={y2-y1}",
+            "rgb"
+        ),
+        (
+            roi_with_contour,
+            "6. ROI + Contour",
+            f"Ukuran ROI: {roi.shape[1]} x {roi.shape[0]} piksel",
+            "rgb"
+        )
     ]
-    
-    for ax, (img_data, title, desc) in zip(axes.flatten(), stages):
-        ax.imshow(img_data)
-        ax.set_title(title, fontsize=11, fontweight='bold', pad=8, color='#1e272e')
-        ax.set_xlabel(desc, fontsize=8.5, color='#57606f', labelpad=5)
+
+    for ax, (image, title, description, image_type) in zip(
+        axes.flatten(),
+        stages
+    ):
+
+        if image_type == "gray":
+            ax.imshow(
+                image,
+                cmap="gray",
+                vmin=0,
+                vmax=255
+            )
+
+        elif image_type == "hue":
+            ax.imshow(
+                image,
+                cmap="hsv",
+                vmin=0,
+                vmax=179
+            )
+
+        else:
+            ax.imshow(image)
+
+        ax.set_title(
+            title,
+            fontsize=11,
+            fontweight="bold",
+            color="#2c3e50"
+        )
+
+        ax.set_xlabel(
+            description,
+            fontsize=8,
+            color="#57606f"
+        )
+
         ax.set_xticks([])
         ax.set_yticks([])
+
         for spine in ax.spines.values():
-            spine.set_color('#d2d6dc')
-            spine.set_linewidth(1.5)
-            
+            spine.set_color("#d2d6dc")
+            spine.set_linewidth(1.2)
+
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-    
-    out_file1 = os.path.join(REPORTS_DIR, 'pipeline_stages.png')
-    out_file2 = os.path.join(STATIC_REPORTS_DIR, 'pipeline_stages.png')
-    plt.savefig(out_file1, dpi=200, bbox_inches='tight')
-    plt.savefig(out_file2, dpi=200, bbox_inches='tight')
+
+    # =========================================
+    # 10. MENYIMPAN HASIL VISUALISASI
+    # =========================================
+
+    out_file1 = os.path.join(
+        REPORTS_DIR,
+        "pipeline_stages.png"
+    )
+
+    out_file2 = os.path.join(
+        STATIC_REPORTS_DIR,
+        "pipeline_stages.png"
+    )
+
+    plt.savefig(
+        out_file1,
+        dpi=200,
+        bbox_inches="tight"
+    )
+
+    plt.savefig(
+        out_file2,
+        dpi=200,
+        bbox_inches="tight"
+    )
+
     plt.close()
-    print(f"  -> Berhasil disimpan di: {out_file1}")
+
+    print("✓ Visualisasi pipeline berhasil dibuat!")
+    print("Luas contour:", f"{leaf_area:.1f}", "piksel")
+    print("Ukuran ROI:", f"{roi.shape[1]}x{roi.shape[0]}")
+    print("Disimpan di:", out_file1)
+
 
 
 def generate_quality_comparison(samples):
