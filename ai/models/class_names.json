@@ -1,7 +1,1 @@
-[
-  "Low",
-  "Binder_Medium",
-  "Filler",
-  "Quality",
-  "Wrapper_High"
-]
+["filler", "binder", "wrapper"]

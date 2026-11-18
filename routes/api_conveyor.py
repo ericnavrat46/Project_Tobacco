@@ -420,23 +420,10 @@ def _get_class_names():
             with open(cn_path) as f:
                 _CACHED_CLASS_NAMES = _json.load(f)
         else:
-            _CACHED_CLASS_NAMES = ['Low', 'Binder_Medium', 'Filler', 'Quality', 'Wrapper_High']
+            _CACHED_CLASS_NAMES = ['filler', 'binder', 'wrapper']
     return _CACHED_CLASS_NAMES
 
 
-def _get_svm_model(base_path=None):
-    global _CACHED_SVM_MODEL
-    if _CACHED_SVM_MODEL is None:
-        root = base_path or (current_app.root_path if current_app else os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        svm_path = os.path.join(root, 'ai', 'models', 'tobacco_svm.pkl')
-        if os.path.exists(svm_path):
-            try:
-                import joblib
-                _CACHED_SVM_MODEL = joblib.load(svm_path)
-            except Exception as err:
-                if current_app:
-                    current_app.logger.error(f"Gagal memuat model SVM: {err}")
-    return _CACHED_SVM_MODEL
 
 
 def warmup_model(app=None):
@@ -468,23 +455,6 @@ def warmup_model(app=None):
             return
         except Exception as e:
             print(f"[AI WARMUP] MobileNetV2 warm-up dilewati: {e}")
-
-    # 2. Coba muat & warm-up model SVM fallback
-    svm = _get_svm_model(base_path=root)
-    if svm is not None:
-        try:
-            import numpy as np
-            from ai.train_svm import extract_feature_vector
-            dummy_img = np.zeros((128, 128, 3), dtype=np.uint8)
-            feat = extract_feature_vector(dummy_img)
-            _ = svm.predict([feat])
-            _ = svm.predict_proba([feat])
-            duration = (datetime.now() - start_t).total_seconds()
-            print(f"[AI WARMUP] Model SVM siap dan panas dalam {duration:.2f} detik.")
-            _IS_WARMED_UP = True
-            return
-        except Exception as e:
-            print(f"[AI WARMUP] SVM warm-up dilewati: {e}")
 
     _IS_WARMED_UP = True
     print("[AI WARMUP] Inisialisasi model selesai.")
@@ -621,77 +591,27 @@ def predict_conveyor():
                 except Exception:
                     preds = model.predict(img_arr, verbose=0)[0]
                 
-                class_names = _get_class_names()
-                num_outputs = len(preds)
+                keras_classes = ['filler', 'binder', 'wrapper']
+                pred_idx = int(np.argmax(preds))
+                raw_conf = float(preds[pred_idx])
 
-                if num_outputs == 5 and len(class_names) == 5:
-                    # ── Model multi-label baru (5 output sigmoid) ──
-                    # Kelas: Low, Binder_Medium, Filler, Quality, Wrapper_High
-                    multi_probs = {cn: round(float(preds[i]), 4) for i, cn in enumerate(class_names)}
+                probabilities = {
+                    'filler': round(float(preds[0]), 4),
+                    'binder': round(float(preds[1]), 4),
+                    'wrapper': round(float(preds[2]), 4)
+                }
 
-                    # Tentukan klasifikasi utama berdasarkan kombinasi label
-                    low_prob = float(preds[0])
-                    binder_prob = float(preds[1])
-                    filler_prob = float(preds[2])
-                    wrapper_prob = float(preds[4])
-
-                    # Kombinasi yang dikenal dari dataset:
-                    # Filler: Low=1, Filler=1, Quality=1         -> filler (Low Quality)
-                    # Binder: Binder_Medium=1, Quality=1         -> binder (Medium Quality)
-                    # Wrapper: Quality=1, Wrapper_High=1         -> wrapper (High Quality)
-                    if wrapper_prob > 0.5:
-                        hasil = 'wrapper'
-                        confidence = round(wrapper_prob, 4)
-                    elif binder_prob > 0.5:
-                        hasil = 'binder'
-                        confidence = round(binder_prob, 4)
-                    else:
-                        hasil = 'filler'
-                        confidence = round(max(low_prob, filler_prob), 4)
-
-                    probabilities = {
-                        'filler': round(max(low_prob, filler_prob), 4),
-                        'binder': round(binder_prob, 4),
-                        'wrapper': round(wrapper_prob, 4)
-                    }
-                    probabilities['multilabel'] = multi_probs
-                else:
-                    # ── Model lama (3 output softmax) ──
-                    keras_classes = ['filler', 'binder', 'wrapper']
-                    pred_idx = int(np.argmax(preds))
+                # Confidence threshold: jika keyakinan < 60%, tandai sebagai unknown (objek bukan daun/kabur)
+                if raw_conf >= 0.60:
                     hasil = keras_classes[pred_idx]
-                    confidence = round(float(preds[pred_idx]), 4)
-                    probabilities = {
-                        'filler': round(float(preds[0]), 4),
-                        'binder': round(float(preds[1]), 4),
-                        'wrapper': round(float(preds[2]), 4)
-                    }
+                    confidence = round(raw_conf, 4)
+                else:
+                    hasil = 'unknown'
+                    confidence = round(raw_conf, 4)
             except Exception as e:
                 current_app.logger.error(f"Gagal prediksi MobileNetV2: {e}")
 
-        # ================================================================
-        # 2. FALLBACK KE SVM (JIKA MODEL DEEP LEARNING BELUM SIAP)
-        # ================================================================
-        if not hasil:
-            svm_model = _get_svm_model()
-            if svm_model is not None and img_cv is not None:
-                try:
-                    from ai.train_svm import extract_feature_vector
-                    feat = extract_feature_vector(img_cv)
-                    pred_idx = int(svm_model.predict([feat])[0])
-                    probas = svm_model.predict_proba([feat])[0]
-                    keras_classes = ['filler', 'binder', 'wrapper']
-                    hasil = keras_classes[pred_idx]
-                    confidence = round(float(probas[pred_idx]), 4)
-                    probabilities = {
-                        'filler': round(float(probas[0]), 4),
-                        'binder': round(float(probas[1]), 4),
-                        'wrapper': round(float(probas[2]), 4)
-                    }
-                except Exception as e:
-                    current_app.logger.warning(f"Gagal prediksi model SVM: {e}")
-
-        # Fallback default aman jika semua model belum dimuat
+        # Fallback default aman jika model belum dimuat
         if not hasil:
             hasil = 'binder'
             confidence = 0.8800
@@ -703,7 +623,8 @@ def predict_conveyor():
         quality_map = {
             'wrapper': 'High Quality',
             'binder': 'Medium Quality',
-            'filler': 'Low Quality'
+            'filler': 'Low Quality',
+            'unknown': 'Unknown / Unclear'
         }
 
         response_data = None

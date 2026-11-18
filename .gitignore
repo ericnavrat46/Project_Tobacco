@@ -12,3 +12,7 @@ ai/models/tobacco_model_vgg16_cmp.keras
 # File temporary Microsoft Office
 ~$*.docx
 ~$*.xlsx
+
+# File upload hasil testing kamera konveyor lokal (agar repo ringan)
+static/uploads/daun/2026/
+
