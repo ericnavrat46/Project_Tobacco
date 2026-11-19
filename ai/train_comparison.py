@@ -30,9 +30,11 @@ import matplotlib.pyplot as plt
 # =============================================================================
 # KONFIGURASI
 # =============================================================================
-BASE_DIR    = Path(r"D:\laragon\www\Tobacco")
-DATA_DIR    = BASE_DIR / "data"
-MODELS_DIR  = BASE_DIR / "ai" / "models"
+# KONFIGURASI
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+DATA_DIR = BASE_DIR / "data"
+MODELS_DIR = BASE_DIR / "ai" / "models"
 OUTPUTS_DIR = BASE_DIR / "ai" / "outputs"
 REPORTS_DIR = BASE_DIR / "ai" / "reports"
 
@@ -49,57 +51,128 @@ PATIENCE     = 6
 
 
 # =============================================================================
-# 1. MUAT DATASET DARI CSV ROBOFLOW
+# 1. MUAT DATASET DARI CSV ROBOFLOW (MAPPING DARI SCRIPT PERTAMA)
 # =============================================================================
 print("==================================================================")
 print("  TobaccoGuard AI - Pelatihan Komparasi MobileNetV2 vs AlexNet")
-print("  Keduanya Menggunakan Metode Transfer Learning 2 Tahap")
+print("  Dataset dan mapping label mengikuti script pertama")
 print("==================================================================")
 
-# -- Baca CSV dan gambar per split (train / valid / test) --
-all_paths  = {"train": [], "valid": [], "test": []}
+# Nama kolom CSV Roboflow dari script pertama.
+LOW_COLUMN = "(Low"
+BINDER_COLUMN = "Binder(Medium"
+FILLER_COLUMN = "Filler"
+QUALITY_COLUMN = "Quality)"
+WRAPPER_COLUMN = "Wrapper(High"
+
+all_paths = {"train": [], "valid": [], "test": []}
 all_labels = {"train": [], "valid": [], "test": []}
 
 for split in ["train", "valid", "test"]:
-    csv_file = DATA_DIR / split / "_classes.csv"
+    split_dir = DATA_DIR / split
+    csv_file = split_dir / "_classes.csv"
+
     if not csv_file.exists():
         raise FileNotFoundError(f"CSV tidak ditemukan: {csv_file}")
 
-    df = pd.read_csv(csv_file)
-    filename_col = df.columns[0]
-    label_cols   = df.columns[1:]
+    # Membaca CSV dengan delimiter yang terdeteksi otomatis.
+    df = pd.read_csv(csv_file, sep=None, engine="python")
 
+    required_columns = [
+        "filename",
+        LOW_COLUMN,
+        BINDER_COLUMN,
+        FILLER_COLUMN,
+        QUALITY_COLUMN,
+        WRAPPER_COLUMN
+    ]
+
+    for column in required_columns:
+        if column not in df.columns:
+            raise ValueError(
+                f"Kolom '{column}' tidak ditemukan pada {csv_file}. "
+                f"Kolom tersedia: {list(df.columns)}"
+            )
+
+    # Memastikan seluruh kolom label berisi angka 0 atau 1.
+    label_columns = required_columns[1:]
+    df[label_columns] = df[label_columns].apply(pd.to_numeric, errors="raise")
+
+    if not df[label_columns].isin([0, 1]).all().all():
+        raise ValueError(f"Label pada {csv_file} harus berisi angka 0 atau 1.")
+
+    # Mapping kelas mengikuti script pertama:
+    # 0 = Filler (Low Quality)
+    # 1 = Binder (Medium Quality)
+    # 2 = Wrapper (High Quality)
+    filler_mask = (
+        (df[LOW_COLUMN] == 1) &
+        (df[BINDER_COLUMN] == 0) &
+        (df[FILLER_COLUMN] == 1) &
+        (df[QUALITY_COLUMN] == 1) &
+        (df[WRAPPER_COLUMN] == 0)
+    )
+
+    binder_mask = (
+        (df[LOW_COLUMN] == 0) &
+        (df[BINDER_COLUMN] == 1) &
+        (df[FILLER_COLUMN] == 0) &
+        (df[QUALITY_COLUMN] == 1) &
+        (df[WRAPPER_COLUMN] == 0)
+    )
+
+    wrapper_mask = (
+        (df[LOW_COLUMN] == 0) &
+        (df[BINDER_COLUMN] == 0) &
+        (df[FILLER_COLUMN] == 0) &
+        (df[QUALITY_COLUMN] == 1) &
+        (df[WRAPPER_COLUMN] == 1)
+    )
+
+    df["label"] = np.select(
+        [filler_mask, binder_mask, wrapper_mask],
+        [0, 1, 2],
+        default=-1
+    )
+
+    # Hentikan program jika ada label yang tidak sesuai mapping.
+    if (df["label"] == -1).any():
+        examples = df.loc[df["label"] == -1, "filename"].head(5).tolist()
+        raise ValueError(
+            f"Ada label yang tidak dikenali pada dataset {split}. "
+            f"Contoh nama file: {examples}"
+        )
+
+    # Mengambil path gambar dan label.
     for _, row in df.iterrows():
-        img_name  = str(row[filename_col]).strip()
-        full_path = str(DATA_DIR / split / img_name)
+        img_name = str(row["filename"]).strip()
+        full_path = split_dir / img_name
 
-        if not os.path.exists(full_path):
-            continue
+        if not full_path.is_file():
+            raise FileNotFoundError(f"Gambar tidak ditemukan: {full_path}")
 
-        # Tentukan kelas berdasarkan kolom aktif
-        cls_idx = 0  # default filler
-        for c in label_cols:
-            if "wrapper" in c.lower() and row[c] == 1:
-                cls_idx = 2
-                break
-            elif "binder" in c.lower() and row[c] == 1:
-                cls_idx = 1
-                break
+        all_paths[split].append(str(full_path))
+        all_labels[split].append(int(row["label"]))
 
-        all_paths[split].append(full_path)
-        all_labels[split].append(cls_idx)
+    print(f"\nDataset {split.upper()}: {len(all_paths[split])} gambar")
+    for class_index, class_name in enumerate(CLASS_NAMES):
+        total = sum(label == class_index for label in all_labels[split])
+        print(f"  - {class_name}: {total} gambar")
 
-train_paths  = np.array(all_paths["train"])
-train_labels = np.array(all_labels["train"])
-val_paths    = np.array(all_paths["valid"])
-val_labels   = np.array(all_labels["valid"])
-test_paths   = np.array(all_paths["test"])
-test_labels  = np.array(all_labels["test"])
+train_paths = np.array(all_paths["train"])
+train_labels = np.array(all_labels["train"], dtype=np.int32)
+val_paths = np.array(all_paths["valid"])
+val_labels = np.array(all_labels["valid"], dtype=np.int32)
+test_paths = np.array(all_paths["test"])
+test_labels = np.array(all_labels["test"], dtype=np.int32)
 
-print(f"Dataset dimuat:")
+print("\nDataset berhasil dimuat:")
 print(f"  - Train : {len(train_paths)} gambar")
 print(f"  - Valid : {len(val_paths)} gambar")
 print(f"  - Test  : {len(test_paths)} gambar")
+
+if len(train_paths) == 0 or len(val_paths) == 0 or len(test_paths) == 0:
+    raise ValueError("Salah satu bagian dataset train/valid/test kosong.")
 
 
 # =============================================================================
