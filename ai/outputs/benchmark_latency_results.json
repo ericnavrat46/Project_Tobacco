@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-11-19 20:29:01",
+  "iterations_tested": 50,
+  "mobilenetv2": {
+    "model_name": "MobileNetV2 (Transfer Learning)",
+    "avg_latency_ms": 1073.86,
+    "std_latency_ms": 59.56,
+    "min_latency_ms": 1024.29,
+    "max_latency_ms": 1311.7,
+    "throughput_fps": 0.9,
+    "total_params": 2422339,
+    "file_size_mb": 22.73
+  },
+  "alexnet": {
+    "model_name": "AlexNet Murni (Original 2012)",
+    "avg_latency_ms": 2958.35,
+    "std_latency_ms": 25.22,
+    "min_latency_ms": 2912.81,
+    "max_latency_ms": 3033.31,
+    "throughput_fps": 0.3,
+    "total_params": 11356931,
+    "file_size_mb": 118.32
+  },
+  "speedup_ratio": 2.75,
+  "param_efficiency_ratio": 4.69
+}
