@@ -396,19 +396,44 @@ def get_conveyor_history():
 
 _CACHED_AI_MODEL = None
 _CACHED_CLASS_NAMES = None
+_CACHED_SVM_MODEL = None
 
-def _get_ai_model(model_path=None):
+def _get_ai_model(model_path=None, base_path=None):
     global _CACHED_AI_MODEL
     if _CACHED_AI_MODEL is None:
-        model_keras = os.path.join(current_app.root_path, 'ai', 'models', 'tobacco_model.keras')
-        model_h5 = os.path.join(current_app.root_path, 'ai', 'models', 'tobacco_model.h5')
+        root = base_path or (current_app.root_path if current_app else os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        model_keras = os.path.join(root, 'ai', 'models', 'tobacco_model.keras')
+        model_h5 = os.path.join(root, 'ai', 'models', 'tobacco_model.h5')
         target_path = model_keras if os.path.exists(model_keras) else (model_path or model_h5)
         if target_path and os.path.exists(target_path):
             try:
-                import tensorflow as tf
-                _CACHED_AI_MODEL = tf.keras.models.load_model(target_path)
+                import keras.src.saving.serialization_lib as sl
+
+                orig_deserialize = sl.deserialize_keras_object
+
+                def _deep_clean_config(obj):
+                    if isinstance(obj, dict):
+                        for k in ['input_axes', 'output_axes', 'renorm', 'renorm_clipping', 'renorm_momentum', 'synchronized', 'shared_object_id', 'quantization_config']:
+                            obj.pop(k, None)
+                        for v in obj.values():
+                            _deep_clean_config(v)
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            _deep_clean_config(item)
+
+                def _patched_deserialize(config, *args, **kwargs):
+                    _deep_clean_config(config)
+                    return orig_deserialize(config, *args, **kwargs)
+
+                sl.deserialize_keras_object = _patched_deserialize
+
+                import keras
+                _CACHED_AI_MODEL = keras.models.load_model(target_path, compile=False)
             except Exception as err:
-                current_app.logger.error(f"Gagal memuat model Keras: {err}")
+                if current_app:
+                    current_app.logger.error(f"Gagal memuat model Keras: {err}")
+                else:
+                    print(f"Gagal memuat model Keras: {err}")
     return _CACHED_AI_MODEL
 
 def _get_class_names():

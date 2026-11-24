@@ -115,7 +115,12 @@ def ask_chatbot():
         }
     }
 
-    candidate_models = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest"]
+    candidate_models = [
+        "gemini-3.5-flash-lite",
+        "gemini-3-flash-preview",
+        "gemini-flash-lite-latest",
+        "gemini-flash-latest"
+    ]
     last_error = ""
 
     for model_name in candidate_models:
@@ -143,9 +148,8 @@ def ask_chatbot():
                 last_error = err_json.get('error', {}).get('message', str(e))
             except Exception:
                 last_error = error_body or str(e)
-            if e.code == 404:
-                continue
-            return jsonify({'success': False, 'error': f'Gemini API Error ({e.code}): {last_error}'}), 500
+            # Selalu lanjutkan fallback ke model berikutnya jika model tidak ditemukan (404), rate limited (429), atau sedang overload/maintenance (500, 502, 503)
+            continue
         except Exception as e:
             last_error = str(e)
             continue
