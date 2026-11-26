@@ -48,7 +48,7 @@ def update_settings():
         if 'gas_threshold' in data:
             settings.gas_threshold = int(data['gas_threshold'])
         if 'mode_fan' in data:
-            settings.mode_fan = str(data['mode_fan'])
+            settings.mode_fan = str(data['mode_fan']).strip().lower()
         if 'status_fan_manual' in data:
             settings.status_fan_manual = bool(data['status_fan_manual'])
 

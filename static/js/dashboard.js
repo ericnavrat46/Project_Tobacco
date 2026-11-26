@@ -224,8 +224,15 @@ document.addEventListener('DOMContentLoaded', () => {
             badgeStatusGas.className = `badge rounded-pill px-2 py-1 ${evalGas.badgeClass}`;
             cardGas.className = `metric-card h-100 ${evalGas.borderClass}`;
 
-            // Render Fan
-            if (data.status_fan) {
+            // Render Fan — gunakan settings (mode + status_fan_manual) jika tersedia
+            // agar dashboard sinkron dengan perintah web, bukan hanya dari record sensor
+            let fanIsOn = data.status_fan; // default dari record sensor
+            if (currentSettings && (currentSettings.mode_fan || '').toLowerCase() === 'manual') {
+                // Mode MANUAL: tampilkan sesuai status_fan_manual dari settings
+                fanIsOn = Boolean(currentSettings.status_fan_manual);
+            }
+
+            if (fanIsOn) {
                 badgeStatusFan.textContent = 'AKTIF';
                 badgeStatusFan.className = 'badge rounded-pill px-2 py-1 bg-success text-white';
                 iconFanRotate.classList.add('fan-spinning', 'text-success');

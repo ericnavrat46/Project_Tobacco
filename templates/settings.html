@@ -39,11 +39,15 @@
                     <p class="text-secondary small mb-0">Aktifkan mode manual untuk mengesampingkan pembacaan sensor dan mengontrol kipas secara langsung dari dashboard.</p>
                 </div>
                 <div class="col-md-4">
-                    <div class="d-flex align-items-center gap-3 bg-light p-3 rounded-3 border">
-                        <div class="form-check form-switch mb-0 fs-5">
-                            <input class="form-check-input" type="checkbox" id="switchModeFan">
+                    <div class="d-flex flex-column gap-2 bg-light p-3 rounded-3 border">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                                <input class="form-check-input fs-5 mt-0" type="checkbox" id="switchModeFan">
+                                <label class="form-check-label fw-bold small" for="switchModeFan">Aktifkan Manual</label>
+                            </div>
+                            <span id="badgeSettingsMode" class="badge bg-secondary">MODE: AUTO</span>
                         </div>
-                        <button type="button" id="btnManualFan" class="btn btn-outline-secondary fw-bold flex-grow-1" disabled>KIPAS OFF</button>
+                        <button type="button" id="btnManualFan" class="btn btn-outline-secondary fw-bold w-100" disabled>KIPAS OFF</button>
                     </div>
                 </div>
             </div>
@@ -68,7 +72,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputGasThreshold = document.getElementById('inputGasThreshold');
     const switchModeFan = document.getElementById('switchModeFan');
     const btnManualFan = document.getElementById('btnManualFan');
+    const badgeSettingsMode = document.getElementById('badgeSettingsMode');
     const settingsAlert = document.getElementById('settingsAlert');
+
+    function updateModeBadge(isManual) {
+        if (!badgeSettingsMode) return;
+        if (isManual) {
+            badgeSettingsMode.textContent = 'MODE: MANUAL';
+            badgeSettingsMode.className = 'badge bg-warning text-dark';
+        } else {
+            badgeSettingsMode.textContent = 'MODE: AUTO';
+            badgeSettingsMode.className = 'badge bg-secondary';
+        }
+    }
     
     async function fetchSettings() {
         try {
@@ -80,8 +96,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 inputKelembapanMax.value = currentSettings.kelembapan_max;
                 inputGasThreshold.value = currentSettings.gas_threshold;
                 
-                const isManual = (currentSettings.mode_fan === 'manual');
+                const isManual = ((currentSettings.mode_fan || '').toLowerCase() === 'manual');
                 switchModeFan.checked = isManual;
+                updateModeBadge(isManual);
                 
                 btnManualFan.disabled = !isManual;
                 if(currentSettings.status_fan_manual) {
@@ -97,18 +114,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Helper: kirim perubahan mode/fan ke server secara langsung (tanpa perlu klik Simpan)
+    async function saveFanState(mode, fanOn) {
+        try {
+            const res = await fetch('/api/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode_fan: mode,
+                    status_fan_manual: fanOn
+                })
+            });
+            const json = await res.json();
+            if (json.success) {
+                console.log('[Settings] Fan state saved:', mode, fanOn);
+                // Tampilkan notifikasi singkat
+                settingsAlert.classList.remove('d-none');
+                setTimeout(() => settingsAlert.classList.add('d-none'), 2000);
+            } else {
+                alert('Gagal menyimpan mode kipas: ' + (json.message || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error('[Settings] Network error:', e);
+            alert('Gagal terhubung ke server Flask saat menyimpan mode kipas.');
+        }
+    }
+
     switchModeFan?.addEventListener('change', (e) => {
-        btnManualFan.disabled = !e.target.checked;
+        const isManual = e.target.checked;
+        btnManualFan.disabled = !isManual;
+        updateModeBadge(isManual);
+
+        // Jika pindah ke AUTO, langsung simpan mode=auto dan fan=false
+        if (!isManual) {
+            btnManualFan.textContent = 'KIPAS OFF';
+            btnManualFan.classList.replace('btn-success', 'btn-outline-secondary');
+            saveFanState('auto', false);
+        } else {
+            // Pindah ke MANUAL, simpan mode=manual dengan status fan saat ini
+            const fanOn = btnManualFan.textContent.includes('ON');
+            saveFanState('manual', fanOn);
+        }
     });
 
     btnManualFan?.addEventListener('click', () => {
+        let fanOn;
         if(btnManualFan.textContent.includes('OFF')) {
             btnManualFan.textContent = 'KIPAS ON';
             btnManualFan.classList.replace('btn-outline-secondary', 'btn-success');
+            fanOn = true;
         } else {
             btnManualFan.textContent = 'KIPAS OFF';
             btnManualFan.classList.replace('btn-success', 'btn-outline-secondary');
+            fanOn = false;
         }
+        // Langsung simpan ke server agar ESP32 langsung terima perubahan
+        saveFanState('manual', fanOn);
     });
 
     settingsForm?.addEventListener('submit', async (e) => {
