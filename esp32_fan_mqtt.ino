@@ -73,14 +73,12 @@ void setFanPin(bool on) {
 // =============================================================
 // 6. Threshold default (akan di-update dari server)
 // =============================================================
+float thresholdSuhuMin       = 20.0;   // Batas bawah suhu (OFF)
 float thresholdSuhuMax       = 25.0;   // Kipas ON jika suhu >= ini
+float thresholdKelembapanMin = 60.0;   // Batas bawah kelembapan (OFF)
 float thresholdKelembapanMax = 70.0;   // Kipas ON jika kelembapan >= ini
+int   thresholdGasMin        = 1050;   // Batas bawah gas (OFF)
 int   thresholdGas           = 1500;   // Kipas ON jika gas > ini
-
-// Hysteresis offset (jarak antara batas ON dan batas OFF)
-#define HYST_SUHU       2.0    // OFF saat suhu < (max - 2)
-#define HYST_KELEMBAPAN 5.0    // OFF saat kelembapan < (max - 5)
-#define HYST_GAS_RATIO  0.7    // OFF saat gas <= (threshold * 0.7)
 
 // =============================================================
 // 7. Timer
@@ -201,10 +199,16 @@ void fetchFanCommand() {
   }
 
   // --- Update threshold dari server ---
+  if (doc.containsKey("suhu_min"))
+    thresholdSuhuMin = doc["suhu_min"].as<float>();
   if (doc.containsKey("suhu_max"))
     thresholdSuhuMax = doc["suhu_max"].as<float>();
+  if (doc.containsKey("kelembapan_min"))
+    thresholdKelembapanMin = doc["kelembapan_min"].as<float>();
   if (doc.containsKey("kelembapan_max"))
     thresholdKelembapanMax = doc["kelembapan_max"].as<float>();
+  if (doc.containsKey("gas_min"))
+    thresholdGasMin = doc["gas_min"].as<int>();
   if (doc.containsKey("gas_threshold"))
     thresholdGas = doc["gas_threshold"].as<int>();
 
@@ -248,13 +252,13 @@ void updateAutoFan(float suhu, float kelembapan, int gas) {
                       (kelembapan >= thresholdKelembapanMax) ||
                       (gas > thresholdGas);
 
-  // --- Kondisi MATI (SEMUA harus aman, di bawah batas bawah) ---
-  float offSuhu = thresholdSuhuMax - HYST_SUHU;
-  float offKelembapan = thresholdKelembapanMax - HYST_KELEMBAPAN;
-  int   offGas  = (int)(thresholdGas * HYST_GAS_RATIO);
+  // --- Kondisi MATI (SEMUA harus aman, di bawah batas minimal dari web) ---
+  float offSuhu = thresholdSuhuMin;
+  float offKelembapan = thresholdKelembapanMin;
+  int   offGas  = thresholdGasMin;
 
-  bool shouldTurnOff = (suhu < offSuhu) &&
-                       (kelembapan < offKelembapan) &&
+  bool shouldTurnOff = (suhu <= offSuhu) &&
+                       (kelembapan <= offKelembapan) &&
                        (gas <= offGas);
 
   // --- Hysteresis: hanya ubah state jika melewati batas ---
@@ -309,12 +313,10 @@ void setup() {
   lcd.clear();
 
   Serial.println("[Setup] Done");
-  Serial.printf("[Threshold] Suhu>=%.1f  Hum>=%.1f  Gas>%d\n",
-                thresholdSuhuMax, thresholdKelembapanMax, thresholdGas);
-  Serial.printf("[Hysteresis] OFF saat: Suhu<%.1f & Hum<%.1f & Gas<=%d\n",
-                thresholdSuhuMax - HYST_SUHU,
-                thresholdKelembapanMax - HYST_KELEMBAPAN,
-                (int)(thresholdGas * HYST_GAS_RATIO));
+  Serial.printf("[Threshold] Suhu: %.1f..%.1f | Hum: %.1f..%.1f | Gas: %d..%d\n",
+                thresholdSuhuMin, thresholdSuhuMax,
+                thresholdKelembapanMin, thresholdKelembapanMax,
+                thresholdGasMin, thresholdGas);
 }
 
 // =============================================================

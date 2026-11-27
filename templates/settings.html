@@ -15,19 +15,49 @@
         <form id="settingsForm">
             <div class="row g-4">
                 <div class="col-md-4">
-                    <label class="form-label fw-bold">Batas Suhu Maks (°C)</label>
-                    <input type="number" step="0.1" class="form-control" id="inputSuhuMax" required>
-                    <div class="form-text">Jika suhu melebihi batas ini, kipas otomatis menyala (pada mode auto).</div>
+                    <div class="p-3 rounded-3 border bg-light h-100">
+                        <h6 class="fw-bold mb-3"><i class="bi bi-thermometer-half text-danger me-1"></i> Suhu (°C)</h6>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Batas Minimal (°C)</label>
+                            <input type="number" step="0.1" class="form-control" id="inputSuhuMin" required>
+                            <div class="form-text">Batas aman bawah; kipas otomatis mati jika semua sensor di bawah batas minimal.</div>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold small">Batas Maksimal (°C)</label>
+                            <input type="number" step="0.1" class="form-control" id="inputSuhuMax" required>
+                            <div class="form-text">Jika suhu mencapai/melebihi batas ini, kipas otomatis menyala.</div>
+                        </div>
+                    </div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold">Batas Kelembapan Maks (%)</label>
-                    <input type="number" step="0.1" class="form-control" id="inputKelembapanMax" required>
-                    <div class="form-text">Jika kelembapan melebihi batas ini, kipas otomatis menyala (pada mode auto).</div>
+                    <div class="p-3 rounded-3 border bg-light h-100">
+                        <h6 class="fw-bold mb-3"><i class="bi bi-droplet-half text-primary me-1"></i> Kelembapan (%)</h6>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Batas Minimal (%)</label>
+                            <input type="number" step="0.1" class="form-control" id="inputKelembapanMin" required>
+                            <div class="form-text">Batas aman bawah; kipas otomatis mati jika semua sensor di bawah batas minimal.</div>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold small">Batas Maksimal (%)</label>
+                            <input type="number" step="0.1" class="form-control" id="inputKelembapanMax" required>
+                            <div class="form-text">Jika kelembapan mencapai/melebihi batas ini, kipas otomatis menyala.</div>
+                        </div>
+                    </div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold">Batas Gas Berbahaya (ppm)</label>
-                    <input type="number" class="form-control" id="inputGasThreshold" required>
-                    <div class="form-text">Batas aktivasi alarm darurat.</div>
+                    <div class="p-3 rounded-3 border bg-light h-100">
+                        <h6 class="fw-bold mb-3"><i class="bi bi-wind text-warning me-1"></i> Gas (ppm)</h6>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small">Batas Minimal / Aman (ppm)</label>
+                            <input type="number" step="1" class="form-control" id="inputGasMin" required>
+                            <div class="form-text">Batas aman bawah; kipas otomatis mati jika semua sensor di bawah batas minimal.</div>
+                        </div>
+                        <div>
+                            <label class="form-label fw-semibold small">Batas Maksimal / Bahaya (ppm)</label>
+                            <input type="number" step="1" class="form-control" id="inputGasThreshold" required>
+                            <div class="form-text">Batas aktivasi kipas dan alarm darurat gas.</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -67,8 +97,11 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const settingsForm = document.getElementById('settingsForm');
+    const inputSuhuMin = document.getElementById('inputSuhuMin');
     const inputSuhuMax = document.getElementById('inputSuhuMax');
+    const inputKelembapanMin = document.getElementById('inputKelembapanMin');
     const inputKelembapanMax = document.getElementById('inputKelembapanMax');
+    const inputGasMin = document.getElementById('inputGasMin');
     const inputGasThreshold = document.getElementById('inputGasThreshold');
     const switchModeFan = document.getElementById('switchModeFan');
     const btnManualFan = document.getElementById('btnManualFan');
@@ -92,8 +125,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const json = await res.json();
             if (json.success && json.data) {
                 const currentSettings = json.data;
+                inputSuhuMin.value = currentSettings.suhu_min ?? 20.0;
                 inputSuhuMax.value = currentSettings.suhu_max;
+                inputKelembapanMin.value = currentSettings.kelembapan_min ?? 60.0;
                 inputKelembapanMax.value = currentSettings.kelembapan_max;
+                inputGasMin.value = currentSettings.gas_min ?? 1050;
                 inputGasThreshold.value = currentSettings.gas_threshold;
                 
                 const isManual = ((currentSettings.mode_fan || '').toLowerCase() === 'manual');
@@ -174,10 +210,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     settingsForm?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const suhuMin = parseFloat(inputSuhuMin.value);
+        const suhuMax = parseFloat(inputSuhuMax.value);
+        const kelembapanMin = parseFloat(inputKelembapanMin.value);
+        const kelembapanMax = parseFloat(inputKelembapanMax.value);
+        const gasMin = parseInt(inputGasMin.value);
+        const gasMax = parseInt(inputGasThreshold.value);
+
+        if (suhuMin >= suhuMax) {
+            alert('Batas Suhu Minimal harus lebih kecil dari Batas Suhu Maksimal.');
+            return;
+        }
+        if (kelembapanMin >= kelembapanMax) {
+            alert('Batas Kelembapan Minimal harus lebih kecil dari Batas Kelembapan Maksimal.');
+            return;
+        }
+        if (gasMin >= gasMax) {
+            alert('Batas Gas Minimal harus lebih kecil dari Batas Gas Maksimal.');
+            return;
+        }
+
         const payload = {
-            suhu_max: parseFloat(inputSuhuMax.value),
-            kelembapan_max: parseFloat(inputKelembapanMax.value),
-            gas_threshold: parseInt(inputGasThreshold.value),
+            suhu_min: suhuMin,
+            suhu_max: suhuMax,
+            kelembapan_min: kelembapanMin,
+            kelembapan_max: kelembapanMax,
+            gas_min: gasMin,
+            gas_threshold: gasMax,
             mode_fan: switchModeFan.checked ? 'manual' : 'auto',
             status_fan_manual: btnManualFan.textContent.includes('ON')
         };

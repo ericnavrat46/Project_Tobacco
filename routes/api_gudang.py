@@ -20,8 +20,11 @@ def get_fan_state():
     {
         "fan": "ON" | "OFF",
         "mode": "AUTO" | "MANUAL",
+        "suhu_min": 20.0,
         "suhu_max": 25.0,
+        "kelembapan_min": 60.0,
         "kelembapan_max": 70.0,
+        "gas_min": 1050,
         "gas_threshold": 1500
     }
     """
@@ -32,8 +35,11 @@ def get_fan_state():
             return jsonify({
                 "fan": "OFF",
                 "mode": "AUTO",
+                "suhu_min": 20.0,
                 "suhu_max": 25.0,
+                "kelembapan_min": 60.0,
                 "kelembapan_max": 70.0,
+                "gas_min": 1050,
                 "gas_threshold": 1500
             }), 200
 
@@ -43,16 +49,22 @@ def get_fan_state():
         return jsonify({
             "fan": fan,
             "mode": mode,
+            "suhu_min": round(float(settings.suhu_min), 2),
             "suhu_max": round(float(settings.suhu_max), 2),
+            "kelembapan_min": round(float(settings.kelembapan_min), 2),
             "kelembapan_max": round(float(settings.kelembapan_max), 2),
+            "gas_min": int(settings.gas_min),
             "gas_threshold": int(settings.gas_threshold)
         }), 200
     except Exception:
         return jsonify({
             "fan": "OFF",
             "mode": "AUTO",
+            "suhu_min": 20.0,
             "suhu_max": 25.0,
+            "kelembapan_min": 60.0,
             "kelembapan_max": 70.0,
+            "gas_min": 1050,
             "gas_threshold": 1500
         }), 200
 
