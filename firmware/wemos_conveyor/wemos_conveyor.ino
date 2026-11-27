@@ -6,10 +6,11 @@
   - WiFi SSID        : MUTIARA
   - WiFi Password    : M4m4p4p4
   - Server Flask     : http://192.168.18.7:5000/api/conveyor
-  - IR Sensor Pin    : D3 (GPIO 0)
+  - IR Sensor Pin    : D7 (GPIO 13)
   - Stepper Step Pin : D5 (GPIO 14)
   - Stepper Dir Pin  : D6 (GPIO 12)
-  - Servo Pin        : D8 (GPIO 15)
+  - Servo 1 (Binder) : D1 (GPIO 5)
+  - Servo 2 (Filler) : D2 (GPIO 4)
   ===================================================================================
 */
 
@@ -19,18 +20,26 @@
 #include <ArduinoJson.h>
 #include <Servo.h>
 
-Servo servoPemilah;
+Servo servoBinder;
+Servo servoFiller;
 
 // --- KONFIGURASI JARINGAN & SERVER FLASK ---
 const char* WIFI_SSID     = "MUTIARA";
 const char* WIFI_PASSWORD = "M4m4p4p4";
-const char* SERVER_URL    = "http://192.168.18.7:5000/api/conveyor";
+const char* SERVER_URL    = "http://192.168.18.7:5000/api/conveyor/latest";
 
 // --- KONFIGURASI PIN HARDWARE ---
-const int irPin    = D3;      
-const int servoPin = D8;   
-const int stepPin  = D5;    
-const int dirPin   = D6;     
+const int irPin       = D7;      
+const int servo1Pin   = D1; // Servo 1 -> BINDER (MG996R)
+const int servo2Pin   = D2; // Servo 2 -> FILLER (MG90S)
+const int stepPin     = D5;    
+const int dirPin      = D6;     
+
+// Posisi sudut masing-masing servo
+const int BINDER_DIAM   = 15;
+const int BINDER_DORONG = 180;
+const int FILLER_DIAM   = 180;
+const int FILLER_DORONG = 15;
 
 // Kecepatan putaran konveyor (microsecond per pulse)
 const int kecepatanKonveyor = 50; 
@@ -54,19 +63,21 @@ void connectToWiFi();
 void classifyAndSendLeaf();
 
 void setup() {
-  Serial.begin(115200);
-  delay(500);
-  Serial.println("\n[TobaccoGuard] Sistem Conveyor Aktif!");
+  Serial.begin(115200); // Pastikan Serial Monitor disetel ke 115200 baud
+  delay(100);
+  Serial.println("\n[TobaccoGuard] Sistem Conveyor Aktif! (115200 baud)");
 
   pinMode(irPin, INPUT);
   pinMode(stepPin, OUTPUT);
   pinMode(dirPin, OUTPUT);
-  
+
   digitalWrite(dirPin, LOW);
-  
-  servoPemilah.attach(servoPin);
-  servoPemilah.write(0); // Posisi awal 0 derajat
-  
+
+  servoBinder.attach(servo1Pin);
+  servoFiller.attach(servo2Pin);
+  servoBinder.write(BINDER_DIAM);
+  servoFiller.write(FILLER_DIAM);
+
   // Hubungkan ke WiFi
   connectToWiFi();
 }
@@ -89,9 +100,6 @@ void loop() {
     leafCounter++;
 
     Serial.printf("\n[CONVEYOR] Daun #%lu terdeteksi! Konveyor BERHENTI untuk pemindaian...\n", leafCounter);
-
-    // Kirim data hasil pemindaian ke Server Flask saat konveyor berhenti
-    classifyAndSendLeaf();
   }
 
   // ==============================================================
@@ -108,6 +116,7 @@ void loop() {
   // FASE 1: Konveyor BERHENTI (1 Detik saat daun tepat di area pemindaian)
   if (statusMesin == 1) {
     if (millis() - timerMulai >= 1000) {  
+      classifyAndSendLeaf();              // Ambil hasil deteksi webcam terbaru dari Flask
       statusMesin = 2;                    
       timerMulai = millis();
       Serial.println("[CONVEYOR] Selesai pindai! Konveyor JALAN membawa daun ke servo...");
@@ -118,19 +127,28 @@ void loop() {
   else if (statusMesin == 2) {
     if (millis() - timerMulai >= 4000) {  
       statusMesin = 3;                    
-      servoPemilah.write(180);            // Palang Naik (180 derajat)
       timerMulai = millis();
-      Serial.println("[SERVO] Palang NAIK (180 derajat) menyortir daun.");
+
+      if (kategoriSaatIni == "binder") {
+        servoBinder.write(BINDER_DORONG);
+        Serial.println("[SERVO] Binder -> Servo 1 (D1) JALAN menyortir daun.");
+      } else if (kategoriSaatIni == "filler") {
+        servoFiller.write(FILLER_DORONG);
+        Serial.println("[SERVO] Filler -> Servo 2 (D2) JALAN menyortir daun.");
+      } else {
+        Serial.println("[SERVO] Wrapper -> Lolos (Kedua servo diam).");
+      }
     }
   }
   
-  // FASE 3: Servo Menahan Posisi 180 (Konveyor TETAP JALAN)
+  // FASE 3: Servo Menahan Posisi Dorong (Konveyor TETAP JALAN)
   else if (statusMesin == 3) {
     if (millis() - timerMulai >= 1000) {  // Lama palang terbuka (1 detik)
       statusMesin = 4;                    
-      servoPemilah.write(0);              // Palang Turun kembali ke 0
+      servoBinder.write(BINDER_DIAM);
+      servoFiller.write(FILLER_DIAM);
       timerMulai = millis();
-      Serial.println("[SERVO] Palang TURUN kembali ke 0 derajat.");
+      Serial.println("[SERVO] Servo kembali ke posisi awal.");
     }
   }
   
@@ -157,51 +175,43 @@ void loop() {
 }
 
 // ==============================================================
-// 5. KLASIFIKASI & KIRIM DATA KE FLASK VIA REST API JSON
+// 5. AMBIL HASIL KLASIFIKASI WEBCAM TERBARU DARI FLASK (GET)
 // ==============================================================
 void classifyAndSendLeaf() {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[WARN] WiFi belum terkoneksi, data gagal dikirim ke Flask.");
+    Serial.println("[WARN] WiFi belum terkoneksi, gagal mengambil hasil dari Flask.");
     return;
-  }
-
-  // Klasifikasi daun tembakau kering:
-  // - Wrapper : Mutu Tinggi (Cokelat keemasan, utuh)
-  // - Binder  : Mutu Sedang (Cokelat standar, elastis)
-  // - Filler  : Mutu Standar/Pengisi
-  int roll = random(1, 101);
-  if (roll <= 45) {
-    kategoriSaatIni = "wrapper";
-    confidenceSaatIni = (float)random(910, 985) / 1000.0;
-  } else if (roll <= 80) {
-    kategoriSaatIni = "binder";
-    confidenceSaatIni = (float)random(880, 960) / 1000.0;
-  } else {
-    kategoriSaatIni = "filler";
-    confidenceSaatIni = (float)random(850, 940) / 1000.0;
   }
 
   WiFiClient client;
   HTTPClient http;
-  http.begin(client, SERVER_URL);
-  http.addHeader("Content-Type", "application/json");
+  if (http.begin(client, SERVER_URL)) {
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = http.getString();
+      StaticJsonDocument<2048> doc;
+      DeserializationError err = deserializeJson(doc, payload);
 
-  // Format JSON yang wajib diterima Flask
-  StaticJsonDocument<200> doc;
-  doc["hasil_klasifikasi"] = kategoriSaatIni;
-  doc["confidence_score"]  = confidenceSaatIni;
-
-  String jsonPayload;
-  serializeJson(doc, jsonPayload);
-
-  int httpCode = http.POST(jsonPayload);
-  if (httpCode > 0) {
-    Serial.printf("[HTTP] Data Daun Terkirim ke Flask (%d): %s (%.1f%%)\n", 
-                  httpCode, kategoriSaatIni.c_str(), confidenceSaatIni * 100.0);
-  } else {
-    Serial.printf("[HTTP] Gagal Kirim ke Flask: %s\n", http.errorToString(httpCode).c_str());
+      // Pastikan parsing JSON berhasil dan field ada
+      if (err) {
+        Serial.printf("[HTTP] Gagal parsing JSON (%s). Payload: %s\n", err.c_str(), payload.c_str());
+      } else if (doc["data"].containsKey("hasil_klasifikasi")) {
+      kategoriSaatIni = doc["data"]["hasil_klasifikasi"].as<String>();
+      kategoriSaatIni.toLowerCase();
+      // confidence_score optional, gunakan 0.0 bila tidak ada
+      confidenceSaatIni = doc["data"].containsKey("confidence_score") ? 
+                        doc["data"]["confidence_score"].as<float>() : 0.0f;
+      Serial.printf("[HTTP] Hasil Webcam dari Flask: %s (%.1f%%)\n",
+                    kategoriSaatIni.c_str(), confidenceSaatIni * 100.0);
+    } else {
+      Serial.println("[HTTP] Data klasifikasi belum tersedia di Flask.");
+    }
+    } else {
+      Serial.printf("[HTTP] Gagal GET dari Flask (%d): %s\n",
+                    httpCode, http.errorToString(httpCode).c_str());
+    }
+    http.end();
   }
-  http.end();
 }
 
 // ==============================================================
