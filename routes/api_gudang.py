@@ -2,8 +2,71 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, time
 from models import db
 from models.gudang import MonitoringGudang
+from models.settings import Settings
 
 api_gudang_bp = Blueprint('api_gudang', __name__, url_prefix='/api/gudang')
+
+
+# ==================================================================
+# GET /api/gudang/fan_state
+# Endpoint yang di-polling ESP32 setiap 2 detik untuk mengetahui
+# perintah fan (ON/OFF) dan mode (AUTO/MANUAL) dari web UI.
+# ==================================================================
+@api_gudang_bp.route('/fan_state', methods=['GET'])
+def get_fan_state():
+    """
+    Mengembalikan status fan, mode, dan threshold dari tabel Settings.
+    Response JSON:
+    {
+        "fan": "ON" | "OFF",
+        "mode": "AUTO" | "MANUAL",
+        "suhu_min": 20.0,
+        "suhu_max": 25.0,
+        "kelembapan_min": 60.0,
+        "kelembapan_max": 70.0,
+        "gas_min": 1050,
+        "gas_threshold": 1500
+    }
+    """
+    try:
+        db.session.expire_all()
+        settings = Settings.query.get(1)
+        if not settings:
+            return jsonify({
+                "fan": "OFF",
+                "mode": "AUTO",
+                "suhu_min": 25.0,
+                "suhu_max": 30.0,
+                "kelembapan_min": 40.0,
+                "kelembapan_max": 50.0,
+                "gas_min": 1050,
+                "gas_threshold": 1500
+            }), 200
+
+        mode = settings.mode_fan.strip().upper() if settings.mode_fan else "AUTO"
+        fan = "ON" if settings.status_fan_manual else "OFF"
+
+        return jsonify({
+            "fan": fan,
+            "mode": mode,
+            "suhu_min": round(float(settings.suhu_min), 2),
+            "suhu_max": round(float(settings.suhu_max), 2),
+            "kelembapan_min": round(float(settings.kelembapan_min), 2),
+            "kelembapan_max": round(float(settings.kelembapan_max), 2),
+            "gas_min": int(settings.gas_min),
+            "gas_threshold": int(settings.gas_threshold)
+        }), 200
+    except Exception:
+        return jsonify({
+            "fan": "OFF",
+            "mode": "AUTO",
+            "suhu_min": 25.0,
+            "suhu_max": 30.0,
+            "kelembapan_min": 40.0,
+            "kelembapan_max": 50.0,
+            "gas_min": 1050,
+            "gas_threshold": 1500
+        }), 200
 
 @api_gudang_bp.route('', methods=['POST'])
 def receive_gudang_data():

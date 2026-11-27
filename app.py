@@ -11,6 +11,8 @@ from routes.api_export import api_export_bp
 from routes.api_settings import api_settings_bp
 from routes.api_chatbot import api_chatbot_bp
 from models.settings import Settings
+from services.mqtt_client import init_mqtt
+import os
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -86,9 +88,29 @@ def create_app(config_class=Config):
             }), 500
         return ("<h1>500 Internal Server Error</h1>", 500)
 
-    # Buat tabel jika belum ada
+    # Buat tabel jika belum ada & pastikan kolom baru pada settings tersedia
     with app.app_context():
         db.create_all()
+        try:
+            from sqlalchemy import inspect, text
+            existing_cols = {c['name'] for c in inspect(db.engine).get_columns('settings')}
+            alter_stmts = []
+            if 'suhu_min' not in existing_cols:
+                alter_stmts.append("ALTER TABLE settings ADD COLUMN suhu_min FLOAT NOT NULL DEFAULT 20.0")
+            if 'kelembapan_min' not in existing_cols:
+                alter_stmts.append("ALTER TABLE settings ADD COLUMN kelembapan_min FLOAT NOT NULL DEFAULT 60.0")
+            if 'gas_min' not in existing_cols:
+                alter_stmts.append("ALTER TABLE settings ADD COLUMN gas_min INT NOT NULL DEFAULT 1050")
+            if alter_stmts:
+                with db.engine.begin() as conn:
+                    for stmt in alter_stmts:
+                        conn.execute(text(stmt))
+        except Exception as e:
+            print(f"[DB Migration Warning] {e}")
+
+    # Jalankan MQTT worker (hindari duplikasi pada reloader debug Werkzeug)
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        init_mqtt(app)
 
     return app
 

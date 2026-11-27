@@ -60,3 +60,14 @@ class Config:
     # Ambang batas Gas (ppm / sensor raw)
     GAS_NORMAL_MAX = 150
     GAS_WARNING_MAX = 300
+
+    # =========================================================================
+    # Konfigurasi MQTT Broker (HiveMQ Public / Local Docker HiveMQ / Mosquitto)
+    # Jika pakai HiveMQ Docker lokal di PC ini, ubah MQTT_BROKER ke '127.0.0.1'
+    # =========================================================================
+    MQTT_ENABLED = os.environ.get('MQTT_ENABLED', 'true').lower() == 'true'
+    MQTT_BROKER = os.environ.get('MQTT_BROKER', 'broker.hivemq.com')
+    MQTT_PORT = int(os.environ.get('MQTT_PORT', '1883'))
+    MQTT_TOPIC_GUDANG_SENSOR = 'tobaccoguard/gudang/sensor'
+    MQTT_TOPIC_GUDANG_CONTROL = 'tobaccoguard/gudang/fan_state'
+    MQTT_TOPIC_CONVEYOR_DATA = 'tobaccoguard/conveyor/data'

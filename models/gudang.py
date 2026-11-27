@@ -22,31 +22,33 @@ class MonitoringGudang(db.Model):
             except Exception:
                 settings = None
 
+        suhu_min = float(settings.suhu_min) if (settings and getattr(settings, 'suhu_min', None) is not None) else Config.TEMP_NORMAL_MIN
         suhu_max = float(settings.suhu_max) if (settings and hasattr(settings, 'suhu_max')) else Config.TEMP_NORMAL_MAX
+        kelembapan_min = float(settings.kelembapan_min) if (settings and getattr(settings, 'kelembapan_min', None) is not None) else Config.HUMIDITY_NORMAL_MIN
         kelembapan_max = float(settings.kelembapan_max) if (settings and hasattr(settings, 'kelembapan_max')) else Config.HUMIDITY_NORMAL_MAX
+        gas_min = int(settings.gas_min) if (settings and getattr(settings, 'gas_min', None) is not None) else int(Config.GAS_NORMAL_MAX)
         gas_threshold = int(settings.gas_threshold) if (settings and hasattr(settings, 'gas_threshold')) else Config.GAS_NORMAL_MAX
 
         # 1. Evaluasi Suhu
-        if Config.TEMP_NORMAL_MIN <= self.suhu <= suhu_max:
+        if suhu_min <= self.suhu <= suhu_max:
             s_suhu = 'normal'
-        elif self.suhu <= (suhu_max + 4.0) and self.suhu >= (Config.TEMP_NORMAL_MIN - 4.0):
+        elif self.suhu <= (suhu_max + 4.0) and self.suhu >= (suhu_min - 4.0):
             s_suhu = 'warning'
         else:
             s_suhu = 'danger'
 
         # 2. Evaluasi Kelembapan
-        if Config.HUMIDITY_NORMAL_MIN <= self.kelembapan <= kelembapan_max:
+        if kelembapan_min <= self.kelembapan <= kelembapan_max:
             s_hum = 'normal'
-        elif (Config.HUMIDITY_NORMAL_MIN - 10.0) <= self.kelembapan <= (kelembapan_max + 5.0):
+        elif (kelembapan_min - 10.0) <= self.kelembapan <= (kelembapan_max + 5.0):
             s_hum = 'warning'
         else:
             s_hum = 'danger'
 
         # 3. Evaluasi Gas
-        gas_safe_limit = gas_threshold * 0.5
-        if self.gas <= gas_safe_limit:
+        if self.gas <= gas_min:
             s_gas = 'normal'
-        elif self.gas <= gas_threshold:
+        elif self.gas < gas_threshold:
             s_gas = 'warning'
         else:
             s_gas = 'danger'
@@ -60,8 +62,11 @@ class MonitoringGudang(db.Model):
             'gas': s_gas,
             'overall': overall,
             'thresholds': {
+                'suhu_min': round(suhu_min, 1),
                 'suhu_max': round(suhu_max, 1),
+                'kelembapan_min': round(kelembapan_min, 1),
                 'kelembapan_max': round(kelembapan_max, 1),
+                'gas_min': gas_min,
                 'gas_threshold': gas_threshold
             }
         }
