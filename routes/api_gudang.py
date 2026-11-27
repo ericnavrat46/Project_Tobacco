@@ -35,10 +35,10 @@ def get_fan_state():
             return jsonify({
                 "fan": "OFF",
                 "mode": "AUTO",
-                "suhu_min": 20.0,
-                "suhu_max": 25.0,
-                "kelembapan_min": 60.0,
-                "kelembapan_max": 70.0,
+                "suhu_min": 25.0,
+                "suhu_max": 30.0,
+                "kelembapan_min": 40.0,
+                "kelembapan_max": 50.0,
                 "gas_min": 1050,
                 "gas_threshold": 1500
             }), 200
@@ -60,10 +60,10 @@ def get_fan_state():
         return jsonify({
             "fan": "OFF",
             "mode": "AUTO",
-            "suhu_min": 20.0,
-            "suhu_max": 25.0,
-            "kelembapan_min": 60.0,
-            "kelembapan_max": 70.0,
+            "suhu_min": 25.0,
+            "suhu_max": 30.0,
+            "kelembapan_min": 40.0,
+            "kelembapan_max": 50.0,
             "gas_min": 1050,
             "gas_threshold": 1500
         }), 200

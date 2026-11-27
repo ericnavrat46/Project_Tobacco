@@ -11,6 +11,8 @@ from routes.api_export import api_export_bp
 from routes.api_settings import api_settings_bp
 from routes.api_chatbot import api_chatbot_bp
 from models.settings import Settings
+from services.mqtt_client import init_mqtt
+import os
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -105,6 +107,10 @@ def create_app(config_class=Config):
                         conn.execute(text(stmt))
         except Exception as e:
             print(f"[DB Migration Warning] {e}")
+
+    # Jalankan MQTT worker (hindari duplikasi pada reloader debug Werkzeug)
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        init_mqtt(app)
 
     return app
 

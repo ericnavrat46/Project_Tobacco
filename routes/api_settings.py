@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from models import db
 from models.settings import Settings
+from services.mqtt_client import publish_fan_state
 
 api_settings_bp = Blueprint('api_settings', __name__, url_prefix='/api/settings')
 
@@ -68,6 +69,7 @@ def update_settings():
             settings.status_fan_manual = bool(data['status_fan_manual'])
 
         db.session.commit()
+        publish_fan_state(settings)
 
         return jsonify({
             "success": True,

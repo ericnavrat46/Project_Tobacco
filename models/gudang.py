@@ -48,7 +48,7 @@ class MonitoringGudang(db.Model):
         # 3. Evaluasi Gas
         if self.gas <= gas_min:
             s_gas = 'normal'
-        elif self.gas <= gas_threshold:
+        elif self.gas < gas_threshold:
             s_gas = 'warning'
         else:
             s_gas = 'danger'
