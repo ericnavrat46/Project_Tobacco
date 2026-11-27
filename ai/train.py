@@ -25,9 +25,10 @@ from collections import Counter
 
 # Konfigurasi Path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATASET_ROOT = os.path.join(BASE_DIR, 'dataset')
-if os.path.exists(os.path.join(DATASET_ROOT, 'dataset')):
-    DATASET_ROOT = os.path.join(DATASET_ROOT, 'dataset')
+os.environ.setdefault('KERAS_HOME', os.path.join(BASE_DIR, '.keras_cache'))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+DATASET_ROOT = os.path.join(PROJECT_ROOT, 'data', 'Dataset')
+MODEL_KERAS_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_model.keras')
 MODEL_SAVE_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_model.h5')
 TFLITE_SAVE_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_model.tflite')
 METADATA_SAVE_PATH = os.path.join(BASE_DIR, 'models', 'model_metadata.json')
@@ -81,12 +82,50 @@ def augment_image_pil(img_pil):
 def load_dataset():
     """
     Membaca dataset daun tembakau dari folder DATASET_ROOT.
-    Mendukung format multiclass classification (_classes.csv) dan CreateML JSON.
+    Mendukung struktur folder per kelas (Filler/, Binder/, Wrapper/) tanpa CSV,
+    serta fallback format _classes.csv / CreateML JSON.
     """
     print(f"\n[1/4] Memuat dan memproses dataset daun tembakau dari: {DATASET_ROOT}")
 
     all_images = []
     all_labels = []
+    valid_exts = ('.jpg', '.jpeg', '.png', '.webp', '.bmp')
+
+    folder_label_map = {
+        'filler': 0,
+        'binder': 1,
+        'wrapper': 2,
+    }
+
+    # -----------------------------------------------------------------
+    # METODE 0: STRUKTUR FOLDER PER KELAS (Filler/, Binder/, Wrapper/)
+    # -----------------------------------------------------------------
+    if os.path.exists(DATASET_ROOT):
+        subdirs = [d for d in os.listdir(DATASET_ROOT) if os.path.isdir(os.path.join(DATASET_ROOT, d))]
+        matched_dirs = [d for d in subdirs if d.lower() in folder_label_map]
+        if matched_dirs:
+            for d in sorted(matched_dirs):
+                lbl_id = folder_label_map[d.lower()]
+                class_dir = os.path.join(DATASET_ROOT, d)
+                files = [f for f in os.listdir(class_dir) if f.lower().endswith(valid_exts)]
+                print(f"  -> Memuat folder '{d}' (kelas {CLASS_NAMES[lbl_id]}): {len(files)} gambar.")
+                for fname in files:
+                    img_path = os.path.join(class_dir, fname)
+                    try:
+                        with Image.open(img_path) as img:
+                            img = img.convert('RGB')
+                            processed = img.resize(IMG_SIZE, Image.Resampling.BILINEAR)
+                            img_arr = np.array(processed, dtype=np.float32) / 255.0
+                            all_images.append(img_arr)
+                            all_labels.append(lbl_id)
+                    except Exception:
+                        continue
+
+            counter = Counter(all_labels)
+            print("\n  Distribusi Dataset yang Dimuat:")
+            for lbl_id, count in sorted(counter.items()):
+                print(f"    - Kelas {lbl_id} ({CLASS_NAMES[lbl_id].upper()} / {QUALITY_NAMES[lbl_id]}): {count} gambar")
+            return np.array(all_images, dtype=np.float32), np.array(all_labels, dtype=np.int32)
 
     splits_to_load = ['train', 'valid', 'test']
 
@@ -225,20 +264,46 @@ def train_model():
         print("[ERROR] Tidak ada dataset yang berhasil dimuat. Periksa folder ai/dataset/.")
         sys.exit(1)
 
-    # Hitung bobot kelas seimbang (Balanced Class Weights)
-    class_weights_arr = compute_class_weight('balanced', classes=np.unique(y_raw), y=y_raw)
+    # Split Train & Validasi (80% Train, 20% Val) SEBELUM augmentasi agar validasi murni
+    X_train, X_val, y_train_idx, y_val_idx = train_test_split(
+        X, y_raw, test_size=0.20, random_state=42, stratify=y_raw
+    )
+
+    # Oversampling + Augmentasi khusus data TRAINING agar seimbang (terutama Wrapper)
+    train_counts = Counter(y_train_idx)
+    max_train_count = max(train_counts.values())
+    aug_images = list(X_train)
+    aug_labels = list(y_train_idx)
+
+    for cls_id, count in sorted(train_counts.items()):
+        needed = max_train_count - count
+        if needed > 0:
+            cls_indices = [i for i, lbl in enumerate(y_train_idx) if lbl == cls_id]
+            print(f"  -> Augmentasi kelas {CLASS_NAMES[cls_id].upper()}: +{needed} gambar (dari {count} -> {max_train_count})")
+            for _ in range(needed):
+                src_idx = random.choice(cls_indices)
+                pil_img = Image.fromarray((X_train[src_idx] * 255.0).astype(np.uint8))
+                aug_pil = augment_image_pil(pil_img)
+                aug_images.append(np.array(aug_pil, dtype=np.float32) / 255.0)
+                aug_labels.append(cls_id)
+
+    X_train = np.array(aug_images, dtype=np.float32)
+    y_train_idx = np.array(aug_labels, dtype=np.int32)
+
+    # Shuffle data training setelah augmentasi
+    perm = np.random.RandomState(42).permutation(len(X_train))
+    X_train = X_train[perm]
+    y_train_idx = y_train_idx[perm]
+
+    # Hitung ulang class_weights setelah balancing (seimbang = ~1.0)
+    class_weights_arr = compute_class_weight('balanced', classes=np.unique(y_train_idx), y=y_train_idx)
     class_weights = {int(i): float(class_weights_arr[i]) for i in range(len(class_weights_arr))}
     print(f"\n  Bobot Kelas Penyeimbang (Class Weights): {class_weights}")
 
-    # One-hot encoding
-    y = to_categorical(y_raw, num_classes=3)
-
-    # Split Train & Validasi (80% Train, 20% Val)
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.20, random_state=42, stratify=y_raw
-    )
-    print(f"  Total Data Training  : {len(X_train)} sampel")
-    print(f"  Total Data Validasi  : {len(X_val)} sampel")
+    y_train = to_categorical(y_train_idx, num_classes=3)
+    y_val = to_categorical(y_val_idx, num_classes=3)
+    print(f"  Total Data Training (setelah seimbang): {len(X_train)} sampel")
+    print(f"  Total Data Validasi (murni asli)     : {len(X_val)} sampel")
 
     # 2. Bangun Model Transfer Learning (MobileNetV2)
     print("\n[2/4] Membangun Arsitektur Model (MobileNetV2 Transfer Learning) ...")
@@ -418,10 +483,12 @@ def train_model():
         print(f"  [WARN] Gagal membuat plot evaluasi: {e}")
 
     # =========================================================================
-    # 5. SIMPAN MODEL (.H5 & .TFLITE) & METADATA
+    # 5. SIMPAN MODEL (.KERAS, .H5 & .TFLITE) & METADATA
     # =========================================================================
+    model.save(MODEL_KERAS_PATH)
+    print(f"\n[SUKSES] Model Keras (.keras) berhasil disimpan di: {MODEL_KERAS_PATH}")
     model.save(MODEL_SAVE_PATH)
-    print(f"\n[SUKSES] Model Keras (.h5) berhasil disimpan di: {MODEL_SAVE_PATH}")
+    print(f"[SUKSES] Model Keras (.h5) berhasil disimpan di: {MODEL_SAVE_PATH}")
 
     # Ekspor ke TensorFlow Lite (.tflite) untuk Edge/IoT (Poin 7)
     try:

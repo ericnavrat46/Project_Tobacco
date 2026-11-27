@@ -268,7 +268,7 @@
                                 <i class="bi bi-record-circle me-1"></i>LIVE
                             </span>
                             <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">
-                                <i class="bi bi-bounding-box me-1"></i>CANNY EDGE
+                                <i class="bi bi-bounding-box me-1"></i>GRAYSCALE CONTOUR
                             </span>
                         </div>
 
@@ -293,7 +293,7 @@
 
                     <div class="alert alert-light border p-2 small mb-0 d-flex align-items-center gap-2">
                         <i class="bi bi-info-circle text-primary"></i>
-                        <span>Kamera akan otomatis mendeteksi daun pada area pandang &amp; mengeksekusi Canny edge overlay.</span>
+                        <span>Kamera akan otomatis mendeteksi daun pada background putih menggunakan pipeline Grayscale &amp; Otsu Thresholding.</span>
                     </div>
                 </div>
 
@@ -327,7 +327,7 @@
                             </div>
                             <div class="col-4 text-center border-end">
                                 <div class="fs-5 fw-semibold mt-1" id="resultEdge">—</div>
-                                <div class="text-muted small">Garis Tepi (Canny)</div>
+                                <div class="text-muted small">Kontur Daun</div>
                             </div>
                             <div class="col-4 text-center">
                                 <div class="fs-5 fw-semibold mt-1" id="resultTimestamp">—</div>
@@ -371,15 +371,15 @@
                             <div class="multilabel-grid" id="multilabelGrid"></div>
                         </div>
 
-                        <!-- Canny Edge Info -->
+                        <!-- Contour Info -->
                         <div id="edgeSection" class="mt-4 pt-3 border-top d-none">
-                            <h6 class="fw-semibold mb-2"><i class="bi bi-bounding-box me-2 text-success"></i>Informasi Kontur &amp; Tepi Daun</h6>
+                            <h6 class="fw-semibold mb-2"><i class="bi bi-bounding-box me-2 text-success"></i>Informasi Kontur &amp; Bounding Box Daun</h6>
                             <div class="small text-secondary" id="edgeDetail"></div>
                         </div>
 
-                        <!-- Annotated Image (hasil Canny kontur) -->
+                        <!-- Annotated Image (hasil crop kontur) -->
                         <div id="annotatedSection" class="mt-4 pt-3 border-top d-none">
-                            <h6 class="fw-semibold mb-2"><i class="bi bi-check2-circle text-emerald me-1"></i>Gambar Terarsip Bergaris Tepi</h6>
+                            <h6 class="fw-semibold mb-2"><i class="bi bi-check2-circle text-emerald me-1"></i>Gambar Terarsip (Crop Daun + Kontur)</h6>
                             <div class="media-box" style="max-height: 280px;">
                                 <img id="annotatedImg" src="" alt="Annotated Leaf" style="max-height: 280px; object-fit: contain;">
                             </div>
@@ -570,7 +570,7 @@ async function classifyUploadedImage() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 2. LIVE WEBCAM & REALTIME CANNY OVERLAY
+// 2. LIVE WEBCAM & REALTIME GRAYSCALE OVERLAY
 // ─────────────────────────────────────────────────────────────
 const webcamVideo = document.getElementById('webcamVideo');
 const edgeOverlayCanvas = document.getElementById('edgeOverlayCanvas');
@@ -616,22 +616,20 @@ function renderLiveLeafEdges() {
         const data = imgData.data;
         const totalPixels = procW * procH;
 
+        // ── Tahap 2 & 3: Grayscale Thresholding untuk Background Putih ──
+        // Latar putih terang (gray > 185) -> diabaikan (Hitam 0)
+        // Objek daun tembakau lebih gelap (gray <= 185) -> daun (Putih 1)
         const mask = new Uint8Array(totalPixels);
         let leafPixelCount = 0;
 
         for (let i = 0, p = 0; i < data.length; i += 4, p++) {
             const r = data[i], g = data[i+1], b = data[i+2];
-            const isRedBelt = (r > 110) && (r > g + 65) && (r > b + 60);
-            const isDriedTobacco = !isRedBelt &&
-                                   (r >= 50 && r <= 220) &&
-                                   (g >= 40 && g <= 185) &&
-                                   (b <= 135) &&
-                                   (r >= g) &&
-                                   (g > b + 15) &&
-                                   (r > b + 25) &&
-                                   ((r - g) <= 50);
+            const gray = (r * 0.299 + g * 0.587 + b * 0.114);
 
-            if (isDriedTobacco) {
+            // Daun tembakau lebih gelap dari background putih terang
+            const isLeaf = (gray <= 185) && (gray >= 15);
+
+            if (isLeaf) {
                 mask[p] = 1;
                 leafPixelCount++;
             } else {
@@ -639,36 +637,45 @@ function renderLiveLeafEdges() {
             }
         }
 
-        if (leafPixelCount > totalPixels * 0.01) {
+        if (leafPixelCount > totalPixels * 0.02) {
+            // ── Tahap 4: Morphological Closing sederhana ──
+            // Tutup lubang internal (5×5 neighbors) agar kontur menyatu
             const cleanMask = new Uint8Array(totalPixels);
-            for (let y = 1; y < procH - 1; y++) {
-                for (let x = 1; x < procW - 1; x++) {
+            const kR = 3; // half-window
+            for (let y = kR; y < procH - kR; y++) {
+                for (let x = kR; x < procW - kR; x++) {
                     const idx = y * procW + x;
                     if (mask[idx] === 1) {
                         cleanMask[idx] = 1;
                     } else {
-                        const neighbors = mask[idx-1] + mask[idx+1] + mask[idx-procW] + mask[idx+procW];
-                        if (neighbors >= 3) cleanMask[idx] = 1;
+                        let sum = 0;
+                        for (let dy = -kR; dy <= kR; dy++) {
+                            for (let dx = -kR; dx <= kR; dx++) {
+                                sum += mask[(y + dy) * procW + (x + dx)];
+                            }
+                        }
+                        if (sum >= (kR * 2 + 1) * (kR * 2 + 1) * 0.4) cleanMask[idx] = 1;
                     }
                 }
             }
 
+            // ── Tahap 5 & 6: Gambar tepi kontur daun di overlay ──
             ovCtx.save();
             ovCtx.lineWidth = 3;
             ovCtx.strokeStyle = '#00FF66';
             ovCtx.shadowColor = '#00FF66';
-            ovCtx.shadowBlur = 8;
+            ovCtx.shadowBlur = 6;
             ovCtx.beginPath();
 
             const scale = scaleFactor;
-            for (let y = 1; y < procH - 1; y++) {
-                for (let x = 1; x < procW - 1; x++) {
+            for (let y = 1; y < procH - 1; y += 2) {
+                for (let x = 1; x < procW - 1; x += 2) {
                     const idx = y * procW + x;
                     if (cleanMask[idx] === 1) {
                         const isEdge = (cleanMask[idx-1] === 0 || cleanMask[idx+1] === 0 ||
                                         cleanMask[idx-procW] === 0 || cleanMask[idx+procW] === 0);
                         if (isEdge) {
-                            ovCtx.rect(x * scale, y * scale, scale, scale);
+                            ovCtx.rect(x * scale, y * scale, scale * 2, scale * 2);
                         }
                     }
                 }
@@ -705,16 +712,16 @@ async function startWebcam() {
         btnWebcamText.innerText = "Matikan Kamera";
         btnToggleWebcamBtn.classList.replace('btn-emerald', 'btn-danger');
         autoScanBadge.className = "badge bg-success rounded-pill small";
-        autoScanBadge.textContent = "Scanning Aktif (5s)";
+        autoScanBadge.textContent = "Scanning Aktif (2s)";
 
         if (edgeAnimId) cancelAnimationFrame(edgeAnimId);
         edgeAnimId = requestAnimationFrame(renderLiveLeafEdges);
 
-        // Auto-scan cycle setiap 5 detik
+        // Auto-scan cycle setiap 2 detik (lebih responsif)
         setTimeout(() => {
             if (webcamStream) {
                 autoScanFrame();
-                autoScanTimer = setInterval(autoScanFrame, 5000);
+                autoScanTimer = setInterval(autoScanFrame, 2000);
             }
         }, 1200);
 

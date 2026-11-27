@@ -30,10 +30,12 @@ import matplotlib.pyplot as plt
 # =============================================================================
 # KONFIGURASI
 # =============================================================================
-# KONFIGURASI
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-DATA_DIR = BASE_DIR / "data"
+# Set cache Keras agar menggunakan bobot lokal yang sudah diunduh
+os.environ['KERAS_HOME'] = str(BASE_DIR / "ai" / ".keras_cache")
+
+DATA_DIR = BASE_DIR / "data" / "Dataset"
 MODELS_DIR = BASE_DIR / "ai" / "models"
 OUTPUTS_DIR = BASE_DIR / "ai" / "outputs"
 REPORTS_DIR = BASE_DIR / "ai" / "reports"
@@ -51,99 +53,67 @@ PATIENCE     = 6
 
 
 # =============================================================================
-# 1. MUAT DATASET DARI CSV ROBOFLOW (MAPPING DARI SCRIPT PERTAMA)
+# 1. MUAT DATASET DARI CSV PADA FOLDER data/Dataset
 # =============================================================================
 print("==================================================================")
 print("  TobaccoGuard AI - Pelatihan Komparasi MobileNetV2 vs AlexNet")
-print("  Dataset dan mapping label mengikuti script pertama")
+print(f"  Direktori Dataset: {DATA_DIR}")
 print("==================================================================")
 
-# Nama kolom CSV Roboflow dari script pertama.
-LOW_COLUMN = "(Low"
-BINDER_COLUMN = "Binder(Medium"
-FILLER_COLUMN = "Filler"
-QUALITY_COLUMN = "Quality)"
-WRAPPER_COLUMN = "Wrapper(High"
+# Pemetaan file CSV per folder split di data/Dataset:
+# Train menggunakan dataset_labels.csv sesuai permintaan
+CSV_MAPPING = {
+    "train": "dataset_labels.csv",
+    "valid": "valid_labels.csv",
+    "test": "test_labels.csv"
+}
 
 all_paths = {"train": [], "valid": [], "test": []}
 all_labels = {"train": [], "valid": [], "test": []}
 
 for split in ["train", "valid", "test"]:
     split_dir = DATA_DIR / split
-    csv_file = split_dir / "_classes.csv"
+    csv_filename = CSV_MAPPING.get(split, f"{split}_labels.csv")
+    csv_file = split_dir / csv_filename
 
     if not csv_file.exists():
-        raise FileNotFoundError(f"CSV tidak ditemukan: {csv_file}")
+        # Fallback jika nama file lain tersedia
+        for alt_name in [f"{split}_labels.csv", "dataset_labels.csv", "_classes.csv"]:
+            alt_path = split_dir / alt_name
+            if alt_path.exists():
+                csv_file = alt_path
+                break
 
-    # Membaca CSV dengan delimiter yang terdeteksi otomatis.
-    df = pd.read_csv(csv_file, sep=None, engine="python")
+    if not csv_file.exists():
+        raise FileNotFoundError(f"File CSV tidak ditemukan pada folder: {split_dir}")
 
-    required_columns = [
-        "filename",
-        LOW_COLUMN,
-        BINDER_COLUMN,
-        FILLER_COLUMN,
-        QUALITY_COLUMN,
-        WRAPPER_COLUMN
-    ]
+    # Membaca file CSV
+    df = pd.read_csv(csv_file)
+    print(f"\n[INFO] Membaca CSV split '{split}': {csv_file.name}")
+    print(f"       Kolom CSV: {list(df.columns)}")
 
-    for column in required_columns:
-        if column not in df.columns:
-            raise ValueError(
-                f"Kolom '{column}' tidak ditemukan pada {csv_file}. "
-                f"Kolom tersedia: {list(df.columns)}"
-            )
-
-    # Memastikan seluruh kolom label berisi angka 0 atau 1.
-    label_columns = required_columns[1:]
-    df[label_columns] = df[label_columns].apply(pd.to_numeric, errors="raise")
-
-    if not df[label_columns].isin([0, 1]).all().all():
-        raise ValueError(f"Label pada {csv_file} harus berisi angka 0 atau 1.")
-
-    # Mapping kelas mengikuti script pertama:
-    # 0 = Filler (Low Quality)
-    # 1 = Binder (Medium Quality)
-    # 2 = Wrapper (High Quality)
-    filler_mask = (
-        (df[LOW_COLUMN] == 1) &
-        (df[BINDER_COLUMN] == 0) &
-        (df[FILLER_COLUMN] == 1) &
-        (df[QUALITY_COLUMN] == 1) &
-        (df[WRAPPER_COLUMN] == 0)
-    )
-
-    binder_mask = (
-        (df[LOW_COLUMN] == 0) &
-        (df[BINDER_COLUMN] == 1) &
-        (df[FILLER_COLUMN] == 0) &
-        (df[QUALITY_COLUMN] == 1) &
-        (df[WRAPPER_COLUMN] == 0)
-    )
-
-    wrapper_mask = (
-        (df[LOW_COLUMN] == 0) &
-        (df[BINDER_COLUMN] == 0) &
-        (df[FILLER_COLUMN] == 0) &
-        (df[QUALITY_COLUMN] == 1) &
-        (df[WRAPPER_COLUMN] == 1)
-    )
-
-    df["label"] = np.select(
-        [filler_mask, binder_mask, wrapper_mask],
-        [0, 1, 2],
-        default=-1
-    )
-
-    # Hentikan program jika ada label yang tidak sesuai mapping.
-    if (df["label"] == -1).any():
-        examples = df.loc[df["label"] == -1, "filename"].head(5).tolist()
+    # Ekstraksi label kelas dari kolom CSV (0: filler, 1: binder, 2: wrapper)
+    if "kategori" in df.columns:
+        cat_map = {"filler": 0, "binder": 1, "wrapper": 2}
+        df["label"] = df["kategori"].astype(str).str.lower().str.strip().map(cat_map)
+    elif all(c in df.columns for c in ["filler", "binder", "wrapper"]):
+        filler_mask  = (df["filler"] == 1)
+        binder_mask  = (df["binder"] == 1)
+        wrapper_mask = (df["wrapper"] == 1)
+        df["label"]  = np.select([filler_mask, binder_mask, wrapper_mask], [0, 1, 2], default=-1)
+    else:
         raise ValueError(
-            f"Ada label yang tidak dikenali pada dataset {split}. "
-            f"Contoh nama file: {examples}"
+            f"Kolom label tidak dikenali pada {csv_file}. "
+            f"Wajib memiliki kolom 'kategori' atau ('filler', 'binder', 'wrapper'). "
+            f"Kolom yang ada: {list(df.columns)}"
         )
 
-    # Mengambil path gambar dan label.
+    # Validasi jika ada label yang kosong / tidak valid
+    if df["label"].isna().any() or (df["label"] == -1).any():
+        invalid_rows = df[df["label"].isna() | (df["label"] == -1)]
+        raise ValueError(f"Ditemukan label tidak valid pada {csv_file}:\n{invalid_rows.head()}")
+
+    # Mengambil path gambar dan label numerik
     for _, row in df.iterrows():
         img_name = str(row["filename"]).strip()
         full_path = split_dir / img_name
@@ -154,7 +124,7 @@ for split in ["train", "valid", "test"]:
         all_paths[split].append(str(full_path))
         all_labels[split].append(int(row["label"]))
 
-    print(f"\nDataset {split.upper()}: {len(all_paths[split])} gambar")
+    print(f"Dataset {split.upper()} terverifikasi: {len(all_paths[split])} gambar")
     for class_index, class_name in enumerate(CLASS_NAMES):
         total = sum(label == class_index for label in all_labels[split])
         print(f"  - {class_name}: {total} gambar")
@@ -226,8 +196,10 @@ mob_save_path = MODELS_DIR / "tobacco_model_mobilenet_cmp.keras"
 mob_start_time = time.time()
 
 # -- Bangun arsitektur MobileNetV2 --
+local_mob_weights = BASE_DIR / "ai" / ".keras_cache" / "models" / "mobilenet_v2_weights_tf_dim_ordering_tf_kernels_1.0_224_no_top.h5"
+mob_weights = str(local_mob_weights) if local_mob_weights.is_file() else "imagenet"
 mob_base = tf.keras.applications.MobileNetV2(
-    weights="imagenet", include_top=False, input_shape=(224, 224, 3)
+    weights=mob_weights, include_top=False, input_shape=(224, 224, 3)
 )
 mob_base.trainable = False  # Tahap 1: Freeze
 

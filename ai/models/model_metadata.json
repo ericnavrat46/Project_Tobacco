@@ -1,5 +1,5 @@
 {
-  "model_architecture": "MobileNetV2",
+  "model_architecture": "MobileNetV2 (Fine-Tuned)",
   "input_shape": [
     224,
     224,
@@ -24,8 +24,49 @@
       "quality": "High Quality"
     }
   },
-  "validation_accuracy": 0.8599,
-  "validation_loss": 0.3344,
-  "dataset_total_samples": 1816,
-  "training_epochs": 8
+  "total_parameters": 2427459,
+  "fine_tuning": {
+    "enabled": true,
+    "unfrozen_layers": 30,
+    "phase1_epochs": 8,
+    "phase2_epochs": 4,
+    "learning_rate_phase2": 1e-05
+  },
+  "validation_accuracy": 1.0,
+  "validation_loss": 0.0032,
+  "classification_report": {
+    "filler": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 80.0
+    },
+    "binder": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 60.0
+    },
+    "wrapper": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 17.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 157.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 157.0
+    }
+  },
+  "dataset_total_samples": 781,
+  "training_epochs": 12
 }

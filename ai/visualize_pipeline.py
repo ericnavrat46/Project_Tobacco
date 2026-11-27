@@ -24,10 +24,9 @@ from PIL import Image, ImageEnhance
 
 # Konfigurasi Path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATASET_ROOT = os.path.join(BASE_DIR, 'dataset')
+DATASET_ROOT = os.path.join(BASE_DIR, '..', 'data', 'Dataset') if os.path.exists(os.path.join(BASE_DIR, '..', 'data', 'Dataset')) else os.path.join(BASE_DIR, 'dataset')
 REPORTS_DIR = os.path.join(BASE_DIR, 'reports')
 STATIC_REPORTS_DIR = os.path.join(BASE_DIR, '..', 'static', 'reports')
-SVM_MODEL_PATH = os.path.join(BASE_DIR, 'models', 'tobacco_svm.pkl')
 METADATA_PATH = os.path.join(BASE_DIR, 'models', 'model_metadata.json')
 
 os.makedirs(REPORTS_DIR, exist_ok=True)
@@ -46,37 +45,46 @@ LABEL_MAP = {
 }
 CLASS_NAMES = ["filler", "binder", "wrapper"]
 QUALITY_NAMES = ["Low Quality (Filler)", "Medium Quality (Binder)", "High Quality (Wrapper)"]
-CLASS_COLORS_HEX = {
-    "filler": "#8B5A2B",   # Cokelat sedang
-    "binder": "#A0522D",   # Cokelat kemerahan
-    "wrapper": "#4B2E1E"   # Cokelat tua
-}
 
 
 def find_sample_images():
-    """Mencari sampel gambar untuk setiap kelas mutu dari dataset train/valid."""
+    """Mencari sampel gambar untuk setiap kelas mutu dari dataset train/valid/test."""
     samples = {}
-    splits = ['train', 'valid']
+    splits = ['train', 'valid', 'test']
     import pandas as pd
     
     for split in splits:
         split_dir = os.path.join(DATASET_ROOT, split)
-        csv_path = os.path.join(split_dir, '_classes.csv')
-        if not os.path.exists(csv_path):
+        csv_candidates = ['dataset_labels.csv', 'valid_labels.csv', 'test_labels.csv', '_classes.csv']
+        csv_path = None
+        for cand in csv_candidates:
+            p = os.path.join(split_dir, cand)
+            if os.path.exists(p):
+                csv_path = p
+                break
+        if not csv_path:
             continue
             
         df = pd.read_csv(csv_path)
         for _, row in df.iterrows():
-            active = [c.strip() for c in df.columns[1:] if row[c] == 1]
-            act_str = ' '.join(active).lower()
-            
             label_key = None
-            if 'filler' in act_str or 'low' in act_str:
-                label_key = "Low Quality"
-            elif 'binder' in act_str or 'medium' in act_str:
-                label_key = "Medium Quality"
-            elif 'wrapper' in act_str or 'high' in act_str:
-                label_key = "High Quality"
+            if 'kategori' in row:
+                kat = str(row['kategori']).lower()
+                if 'filler' in kat:
+                    label_key = "Low Quality"
+                elif 'binder' in kat:
+                    label_key = "Medium Quality"
+                elif 'wrapper' in kat:
+                    label_key = "High Quality"
+            else:
+                active = [c.strip() for c in df.columns[1:] if row[c] == 1]
+                act_str = ' '.join(active).lower()
+                if 'filler' in act_str or 'low' in act_str:
+                    label_key = "Low Quality"
+                elif 'binder' in act_str or 'medium' in act_str:
+                    label_key = "Medium Quality"
+                elif 'wrapper' in act_str or 'high' in act_str:
+                    label_key = "High Quality"
                 
             if label_key and label_key not in samples:
                 img_path = os.path.join(split_dir, row['filename'])
@@ -101,18 +109,18 @@ def find_sample_images():
 def generate_pipeline_stages(sample_info):
     """
     Visualisasi tahapan Computer Vision TobaccoGuard AI
-    menggunakan segmentasi HSV berdasarkan warna merah conveyor.
+    menggunakan Grayscale & Otsu Thresholding (Background Putih).
 
     Tahapan:
     1. Citra asli
-    2. Ruang warna HSV
-    3. Segmentasi HSV + Invert
+    2. Grayscale & Gaussian Blur
+    3. Thresholding (Otsu) Invert
     4. Morphological Operation
     5. Contour Detection + Bounding Box
     6. ROI + Contour
     """
 
-    print("[1/4] Membuat visualisasi pipeline Computer Vision HSV...")
+    print("[1/4] Membuat visualisasi pipeline Computer Vision Grayscale...")
 
     # =========================================
     # 1. MEMBACA CITRA ASLI
@@ -135,47 +143,31 @@ def generate_pipeline_stages(sample_info):
     print("Resolusi gambar:", width, "x", height)
 
     # =========================================
-    # 2. KONVERSI BGR KE HSV
+    # 2. KONVERSI BGR KE GRAYSCALE & GAUSSIAN BLUR
     # =========================================
 
-    img_hsv = cv2.cvtColor(
+    img_gray = cv2.cvtColor(
         img_bgr,
-        cv2.COLOR_BGR2HSV
+        cv2.COLOR_BGR2GRAY
     )
 
-    # Visualisasi kanal Hue untuk panel HSV
-    hue_channel = img_hsv[:, :, 0]
+    img_blur = cv2.GaussianBlur(
+        img_gray,
+        (7, 7),
+        0
+    )
 
     # =========================================
-    # 3. SEGMENTASI WARNA MERAH
+    # 3. THRESHOLDING (OTSU) INVERT
     # =========================================
 
-    lower_red1 = np.array([0, 50, 50])
-    upper_red1 = np.array([10, 255, 255])
-
-    lower_red2 = np.array([170, 50, 50])
-    upper_red2 = np.array([180, 255, 255])
-
-    # Membuat mask warna merah pertama
-    mask1 = cv2.inRange(
-        img_hsv,
-        lower_red1,
-        upper_red1
-    )
-
-    # Membuat mask warna merah kedua
-    mask2 = cv2.inRange(
-        img_hsv,
-        lower_red2,
-        upper_red2
-    )
-
-    # Menggabungkan kedua mask merah
-    red_background_mask = mask1 + mask2
-
-    # Invert: daun putih, background merah hitam
-    binary_mask = cv2.bitwise_not(
-        red_background_mask
+    # Background putih (> threshold) -> Hitam (0)
+    # Daun tembakau (< threshold) -> Putih (255)
+    thresh_val, binary_mask = cv2.threshold(
+        img_blur,
+        0,
+        255,
+        cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
     )
 
     # =========================================
@@ -305,7 +297,7 @@ def generate_pipeline_stages(sample_info):
     )
 
     fig.suptitle(
-        "TobaccoGuard AI - Computer Vision Pipeline (HSV-Based)",
+        "TobaccoGuard AI - Computer Vision Pipeline (Grayscale-Based)",
         fontsize=15,
         fontweight="bold",
         color="#2c3e50"
@@ -319,15 +311,15 @@ def generate_pipeline_stages(sample_info):
             "rgb"
         ),
         (
-            hue_channel,
-            "2. Ruang Warna HSV (Hue)",
-            "Menampilkan kanal Hue dari ruang warna HSV",
-            "hue"
+            img_gray,
+            "2. Grayscale & Blur",
+            "Konversi BGR ke Grayscale + Gaussian Blur 7x7",
+            "gray"
         ),
         (
             binary_mask,
-            "3. Segmentasi HSV + Invert",
-            "Daun putih dan background merah hitam",
+            "3. Thresholding (Otsu) Invert",
+            f"Otsu Threshold ({int(thresh_val)}): Daun putih, background hitam",
             "gray"
         ),
         (
